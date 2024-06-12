@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const secretKey = 'secretkey';
 const verifyToken = require('../middleware/authMiddleware');
+const { sequelize } = require('../models');
 
 const isAdmin = (req, res, next) => {
     const token = req.headers['authorization'].split(' ')[1];
@@ -27,26 +28,62 @@ const isAdmin = (req, res, next) => {
     return jwt.sign(tokenPayload, secretKey, { expiresIn: '1h' });
     };
 
+
+// Password validation
+const validatePassword = (password) => {
+    const minLength = 8;
+    const maxLength = 10;
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    return (
+      password.length >= minLength &&
+      password.length <= maxLength &&
+      hasLetter &&
+      hasNumber &&
+      hasSpecialChar
+    );
+  };
+
   router.get('/',  async (req, res) => {
-    const users = await User.findAll();
-    res.json(users);
+    try {
+        const [users, metadata] = await sequelize.query('SELECT * FROM users');
+        res.json(users);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err });
+    }
+   
+   
 });
 
 router.post('/register', async (req, res) => {
     const { username, password, email, role} = req.body;
     console.log(username, password, email, role);
     try {
-        const existingUser = await User.findOne({ where: { username: username } });
-        if (existingUser) {
+
+        if (!validatePassword(password)) {
+            return res.status(400).json({ error: 'Password does not meet requirements' });
+        }
+        const [existingUser] = await sequelize.query(`SELECT * FROM users WHERE username = '${username}'`);
+        if (existingUser.length > 0) {
             return res.status(400).json({ error: 'Username already exists' });
         }
-        const existingEmail = await User.findOne({ where: { email: email } });
-        if (existingEmail) {
+        const [existingEmail] = await sequelize.query(`SELECT * FROM users WHERE email = '${email}'`);
+        if (existingEmail.length>0) {
             return res.status(400).json({ error: 'Email already exists' });
         }
     
     const hashedPassword = await bcrypt.hash(password, 8);
-    await User.create({ username: username, password: hashedPassword, email: email, role: role, isDisabled: false});
+    const query = `
+    INSERT INTO users (username, password, email, role, isDisabled)
+    VALUES ('${username}', '${hashedPassword}', '${email}', '${role}', false)
+  `;
+  await sequelize.query(query, {
+    replacements: { username, password: hashedPassword, email, role },
+    type: sequelize.QueryTypes.INSERT,
+  });
     res.json('User created');
 } catch (error) {
     console.error('Failed to create user:', error);
@@ -58,21 +95,22 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
     try {
-        const user = await User.findOne({ where: { username: username } });
-        if (!user) {
+        const [user] = await sequelize.query(`SELECT * FROM users WHERE username = '${username}'`);
+       
+        if (!user.length === 0) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
-
-        if (user.isDisabled) {
+        const foundUser = user[0];
+        if (foundUser.isDisabled) {
             return res.status(540).json({ error: 'Disabled' });
         }
 
-        const validPassword = await bcrypt.compare(password, user.password);
+        const validPassword = await bcrypt.compare(password, foundUser.password);
         if (!validPassword) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
 
-        const token = createToken(user, req);
+        const token = createToken(foundUser, req);
         res.cookie('token', token, { httpOnly: false});
         res.status(200).json({ auth: true, token: token });
     } catch (err) {
@@ -112,7 +150,9 @@ router.put('/update-email', verifyToken, async (req, res) => {
       if (!validPassword) {
         return res.status(401).json({ error: 'Current password is incorrect' });
       }
-  
+      if (!validatePassword(newPassword)) {
+        return res.status(400).json({ error: 'Password does not meet requirements' });
+    }
       const hashedPassword = await bcrypt.hash(newPassword, 8);
       await User.update({ password: hashedPassword }, { where: { id: userId } });
       res.status(200).json({ message: 'Password updated successfully' });
@@ -127,7 +167,7 @@ router.get('/profile', verifyToken, async (req, res) => {
     const userId = req.userId;
   
     try {
-      const user = await User.findOne({ where: { id: userId }, attributes: ['username', 'email'] });
+      const user = await User.findOne({ where: { id: userId }, attributes: ['username', 'email', 'role', 'password'] });
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }

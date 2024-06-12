@@ -1,7 +1,5 @@
 'use strict';
 
-const { ENUM } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
     username: {
