@@ -35,10 +35,26 @@ const isAdmin = (req, res, next) => {
 router.post('/register', async (req, res) => {
     const { username, password, email, role} = req.body;
     console.log(username, password, email, role);
+    try {
+        const existingUser = await User.findOne({ where: { username: username } });
+        if (existingUser) {
+            return res.status(400).json({ error: 'Username already exists' });
+        }
+        const existingEmail = await User.findOne({ where: { email: email } });
+        if (existingEmail) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+    
     const hashedPassword = await bcrypt.hash(password, 8);
     await User.create({ username: username, password: hashedPassword, email: email, role: role, isDisabled: false});
     res.json('User created');
+} catch (error) {
+    console.error('Failed to create user:', error);
+    res.status(500).json({ error: 'Failed to create user' });
+}
 });
+
+
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
     try {
