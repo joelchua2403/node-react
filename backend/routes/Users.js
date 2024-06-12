@@ -14,6 +14,18 @@ const isAdmin = (req, res, next) => {
     next();
   };
 
+  // Create token
+  const createToken = (user, req) => {
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      ip: req.ip,
+      browser: (req.headers['user-agent'])
+    };
+    return jwt.sign(tokenPayload, secretKey, { expiresIn: '1h' });
+    };
+
   router.get('/',  async (req, res) => {
     const users = await User.findAll();
     res.json(users);
@@ -43,7 +55,8 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
 
-        const token = jwt.sign({ username: user.username, role: user.role, id: user.id }, secretKey, { expiresIn: '1h' });
+        const token = createToken(user, req);
+        res.cookie('token', token, { httpOnly: false});
         res.status(200).json({ auth: true, token: token });
     } catch (err) {
         console.log('error:', err);

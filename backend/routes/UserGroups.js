@@ -30,6 +30,7 @@ router.post('/:groupId/join', verifyToken, async (req, res) => {
   
     try {
       const userGroup = await UserGroup.create({ userId, groupId });
+      console.log('User Group:', userGroup);
       res.json(userGroup);
     } catch (error) {
       res.status(500).json({ error: 'Failed to join group' });

@@ -1,17 +1,24 @@
 const express = require('express');
 const app = express();
+const verifyToken = require('./middleware/authMiddleware');
 app.use(express.json());
 const cors = require('cors');
-app.use(cors());
+app.use(cors(
+  {
+    origin: 'http://localhost:3000',
+    credentials: true
+  }
+));
+
 
 const db = require('./models');
 
 // Routes
 const postRouter = require('./routes/Posts');
-app.use('/posts', postRouter);
+app.use('/posts', verifyToken, postRouter);
 app.use('/users', require('./routes/Users'));
-app.use('/groups', require('./routes/Groups'));
-app.use('/usergroups', require('./routes/UserGroups'));
+app.use('/groups',verifyToken, require('./routes/Groups'));
+app.use('/usergroups',verifyToken, require('./routes/UserGroups'));
 
 
 

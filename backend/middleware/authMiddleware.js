@@ -21,6 +21,10 @@ const verifyToken = (req, res, next) => {
       return res.status(500).json({ auth: false, message: 'Failed to authenticate token' });
     }
 
+    if (decoded.ip !== req.ip || decoded.browser !== (req.headers['user-agent'])) {
+        return res.status(401).json({ auth: false, message: 'Token not valid for this user' });
+        }
+
     req.userId = decoded.id; // Ensure this matches your token payload
     next();
   });
