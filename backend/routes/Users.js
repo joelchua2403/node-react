@@ -4,6 +4,7 @@ const {  User } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const secretKey = 'secretkey';
+const verifyToken = require('../middleware/authMiddleware');
 
 const isAdmin = (req, res, next) => {
     const token = req.headers['authorization'].split(' ')[1];
@@ -69,6 +70,57 @@ router.patch('/:id/disable', isAdmin, async (req, res) => {
     await User.update({ isDisabled: true }, { where: { id: id } });
     res.json('User disabled');
 });
+
+// Update email
+router.put('/update-email', verifyToken, async (req, res) => {
+    const userId = req.userId;
+    const { newEmail } = req.body;
+  
+    try {
+      await User.update({ email: newEmail }, { where: { id: userId } });
+      res.status(200).json({ message: 'Email updated successfully' });
+    } catch (error) {
+      console.error('Failed to update email:', error);
+      res.status(500).json({ error: 'Failed to update email' });
+    }
+  });
+  
+  // Update password
+  router.put('/update-password', verifyToken, async (req, res) => {
+    const userId = req.userId;
+    const { currentPassword, newPassword } = req.body;
+  
+    try {
+      const user = await User.findOne({ where: { id: userId } });
+      const validPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ error: 'Current password is incorrect' });
+      }
+  
+      const hashedPassword = await bcrypt.hash(newPassword, 8);
+      await User.update({ password: hashedPassword }, { where: { id: userId } });
+      res.status(200).json({ message: 'Password updated successfully' });
+    } catch (error) {
+      console.error('Failed to update password:', error);
+      res.status(500).json({ error: 'Failed to update password' });
+    }
+  });
+
+ // Fetch user info
+router.get('/profile', verifyToken, async (req, res) => {
+    const userId = req.userId;
+  
+    try {
+      const user = await User.findOne({ where: { id: userId }, attributes: ['username', 'email'] });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.status(200).json(user);
+    } catch (error) {
+      console.error('Failed to fetch user info:', error);
+      res.status(500).json({ error: 'Failed to fetch user info' });
+    }
+  });
 
 
 module.exports = router;
