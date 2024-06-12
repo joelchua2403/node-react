@@ -10,6 +10,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    status: {
+      type: DataTypes.ENUM('scheduled', 'in developement', 'completed'),
+      allowNull: false,
+      defaultValue: 'scheduled',
+    },
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -47,9 +47,9 @@ router.get("/verifyToken", async (req, res) => {
 
 router.post('/', verifyToken, async (req, res) => {
     try {
-      const { title, content, userId, groupId } = req.body;
+      const { title, content, userId, groupId, status } = req.body;
       console.log(title, content, userId);
-      const post = await Post.create({ title, content, userId, groupId });
+      const post = await Post.create({ title, content, userId, groupId, status });
       res.json(post);
     } catch (error) {
       res.status(500).json({ error: error.message });
