@@ -62,12 +62,12 @@ router.delete("/:id" ,async (req, res) => {
     res.json("Post deleted");
 })
 
-router.put("/:id" ,async (req, res) => {
+ router.put("/:id" ,async (req, res) => {
     const id = req.params.id;
     const newPost = req.body;
-    await Post.update(newPost, {where: {id: id}})
-    res.json("Post updated");
-})
+     await Post.update(newPost, {where: {id: id}})
+     res.json("Post updated");
+ })
 
 router.post('/register', async (req, res) => {
     const { username, password } = req.body;
@@ -92,5 +92,36 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign({ username: user.username }, secretKey, { expiresIn: '1h' });
     res.status(200).send({ auth: true, token: token });
 });
+
+router.put("/posts/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { title, content, status } = req.body;
+
+  try {
+    // Ensure that the status value is one of the allowed values if provided
+    if (status && !['scheduled', 'in development', 'completed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    const updatedFields = {};
+
+    if (title !== undefined) updatedFields.title = title;
+    if (content !== undefined) updatedFields.content = content;
+    if (status !== undefined) updatedFields.status = status;
+
+    await sequelize.query(
+      `UPDATE posts SET ${Object.keys(updatedFields).map((key, idx) => `${key} = ?`).join(', ')} WHERE id = ?`,
+      { replacements: [...Object.values(updatedFields), id] }
+    );
+
+    const [updatedPost] = await sequelize.query('SELECT * FROM posts WHERE id = ?', { replacements: [id] });
+
+    res.status(200).json(updatedPost);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
 
 module.exports = router;
