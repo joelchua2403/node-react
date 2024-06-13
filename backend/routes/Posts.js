@@ -23,26 +23,14 @@ const verifyToken = (req, res, next) => {
 
 router.get("/" , async (req, res) => {
     try {
-        const posts = await Post.findAll({where: {userId: req.userId}});
+        const query = 'SELECT posts.*, users.username FROM posts JOIN users ON posts.userId = users.id WHERE posts.groupId = :groupId';
+        const posts = await sequelize.query(query, { replacements: { groupId: req.query.groupId } });
         res.json(posts);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err });
     }
     
-});
-
-router.get("/verifyToken", async (req, res) => {
-    const token = req.headers['authorization'];
-    if (!token) {
-        return res.json({ auth: false });
-    }
-    jwt.verify(token, secretKey, (err, decoded) => {
-        if (err) {
-            return res.json({ auth: false });
-        }
-        res.json({ auth: true });
-    });
 });
 
 router.post('/', verifyToken, async (req, res) => {
