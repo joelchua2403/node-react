@@ -20,6 +20,30 @@ router.get("/" , async (req, res) => {
     
 });
 
+router.get("/:groupId/members" , async (req, res) => {
+  const groupId = req.params.groupId;
+ 
+  try {
+    const group = await Group.findOne({
+      where: { id: groupId },
+      include: {
+        model: User,
+        as: 'users',
+        through: { attributes: [] }, // Exclude the UserGroup join table attributes
+      },
+    });
+
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    res.json(group.users);
+  } catch (error) {
+    console.error('Failed to fetch group members:', error);
+    res.status(500).json({ error: 'Failed to fetch group members' });
+  }
+});
+
 
 // Create a group
 router.post('/', async (req, res) => {
