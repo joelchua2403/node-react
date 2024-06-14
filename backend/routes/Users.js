@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const {  User } = require('../models');
+const {  User, Group, UserGroup } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const secretKey = 'secretkey';
@@ -46,17 +46,23 @@ const validatePassword = (password) => {
     );
   };
 
-  router.get('/',  async (req, res) => {
+ 
+router.get('/', verifyToken, async (req, res) => {
     try {
-        const [users, metadata] = await sequelize.query('SELECT * FROM users');
-        res.json(users);
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err });
+      const users = await User.findAll({
+        include: {
+          model: Group,
+          through: UserGroup,
+          as: 'groups'
+        }
+      });
+  
+      res.json(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      res.status(500).json({ error: 'Failed to fetch users' });
     }
-   
-   
-});
+  });
 
 router.post('/register', async (req, res) => {
     const { username, password, email, role} = req.body;
@@ -161,6 +167,84 @@ router.put('/update-email', verifyToken, async (req, res) => {
       res.status(500).json({ error: 'Failed to update password' });
     }
   });
+
+  router.put('/update-groups', verifyToken, isAdmin, async (req, res) => {
+    const { username, groups } = req.body;
+    try {
+      const user = await User.findOne({ where: { username } });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+  
+      const groupInstances = await Group.findAll({
+        where: {
+          name: groups
+        }
+      });
+  
+      await user.setGroups(groupInstances);
+  
+      res.status(200).json({ message: 'User groups updated successfully' });
+    } catch (error) {
+      console.error('Failed to update user groups:', error);
+      res.status(500).json({ error: 'Failed to update user groups' });
+    }
+  });
+
+  router.put('/:username', verifyToken, isAdmin, async (req, res) => {
+    const { username } = req.params;
+    const { email, password, role } = req.body;
+  
+    try {
+      const user = await User.findOne({ where: { username } });
+  
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+  
+      if (email) user.email = email;
+      if (role) user.role = role;
+      if (password) {
+        if (!validatePassword(password)) {
+          return res.status(400).json({ error: 'Password does not meet requirements' });
+        }
+        user.password = await bcrypt.hash(password, 8);
+      }
+  
+      await user.save();
+      res.status(200).json({ message: 'User updated successfully' });
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+  
+  // Update user groups
+  router.put('/update-groups', verifyToken, isAdmin, async (req, res) => {
+    const { username, groups } = req.body;
+  
+    try {
+      const user = await User.findOne({ where: { username } });
+  
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+  
+      const groupInstances = await Group.findAll({
+        where: {
+          name: groups
+        }
+      });
+  
+      await user.setGroups(groupInstances);
+  
+      res.status(200).json({ message: 'User groups updated successfully' });
+    } catch (error) {
+      console.error('Failed to update user groups:', error);
+      res.status(500).json({ error: 'Failed to update user groups' });
+    }
+  });
+  
 
  // Fetch user info
 router.get('/profile', verifyToken, async (req, res) => {
