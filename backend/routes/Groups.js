@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Group, UserGroup, Post } = require('../models');
+const { Group, UserGroup, Post, User } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { where } = require('sequelize');
@@ -20,7 +20,7 @@ router.get("/" , async (req, res) => {
     
 });
 
-router.get("/:groupId/members" , async (req, res) => {
+router.get("/:groupId/members" , verifyToken, async (req, res) => {
   const groupId = req.params.groupId;
  
   try {

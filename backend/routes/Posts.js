@@ -6,24 +6,12 @@ const jwt = require('jsonwebtoken');
 const { where } = require('sequelize');
 const Group = require('../models/Group');
 const secretKey = 'secretkey'
+const verifyToken = require('../middleware/authMiddleware');
+const { sequelize } = require('../models');
 
-const verifyToken = (req, res, next) => {
-    const token = req.headers['authorization'].split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ auth: false, message: 'No token provided' });
-    }
-    jwt.verify(token, secretKey, (err, decoded) => {
-        if (err) {
-            return res.status(500).json({ auth: false, message: 'Failed to authenticate token' });
-        }
-        req.userId = decoded.id;
-        next();
-    });
-};
-
-router.get("/" , async (req, res) => {
+router.get("/" , verifyToken, async (req, res) => {
     try {
-        const query = 'SELECT posts.*, users.username FROM posts JOIN users ON posts.userId = users.id WHERE posts.groupId = :groupId';
+        const query = 'SELECT posts.*, users.username FROM posts JOIN users ON posts.userId = users.username WHERE posts.groupId = :groupId';
         const posts = await sequelize.query(query, { replacements: { groupId: req.query.groupId } });
         res.json(posts);
     } catch (err) {
