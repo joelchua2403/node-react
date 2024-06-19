@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const secretKey = 'secretkey';
 const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
+const { Op } = require('sequelize');
 
 const isAdmin = (req, res, next) => {
     const token = req.headers['authorization'].split(' ')[1];
@@ -193,7 +194,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
 
   router.put('/:username', verifyToken, isAdmin, async (req, res) => {
     const { username } = req.params;
-    const { email, password, role } = req.body;
+    const { email, password, role, groups } = req.body;
   
     try {
       const user = await User.findOne({ where: { username } });
@@ -212,6 +213,17 @@ router.put('/update-email', verifyToken, async (req, res) => {
       }
   
       await user.save();
+  
+      if (groups) {
+        const groupInstances = await Group.findAll({
+          where: {
+            name: { [Op.in]: groups }
+          }
+        });
+  
+        await user.setGroups(groupInstances);
+      }
+  
       res.status(200).json({ message: 'User updated successfully' });
     } catch (error) {
       console.error('Failed to update user:', error);
@@ -219,31 +231,6 @@ router.put('/update-email', verifyToken, async (req, res) => {
     }
   });
   
-  // Update user groups
-  router.put('/update-groups', verifyToken, isAdmin, async (req, res) => {
-    const { username, groups } = req.body;
-  
-    try {
-      const user = await User.findOne({ where: { username } });
-  
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-  
-      const groupInstances = await Group.findAll({
-        where: {
-          name: groups
-        }
-      });
-  
-      await user.setGroups(groupInstances);
-  
-      res.status(200).json({ message: 'User groups updated successfully' });
-    } catch (error) {
-      console.error('Failed to update user groups:', error);
-      res.status(500).json({ error: 'Failed to update user groups' });
-    }
-  });
   
 
  // Fetch user info
