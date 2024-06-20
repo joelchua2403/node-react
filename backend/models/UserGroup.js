@@ -2,12 +2,12 @@
 
 module.exports = (sequelize, DataTypes) => {
   const UserGroup = sequelize.define('UserGroup', {
-    userId: {
-      type: DataTypes.INTEGER,
+    username: {
+      type: DataTypes.STRING,
       allowNull: false,
       references: {
         model: 'User',
-        key: 'id'
+        key: 'username'
       },
       onUpdate: 'CASCADE',
       onDelete: 'CASCADE'
@@ -23,6 +23,11 @@ module.exports = (sequelize, DataTypes) => {
       onDelete: 'CASCADE'
     }
   });
+
+  UserGroup.associate = function(models) {
+    UserGroup.belongsTo(models.User, { foreignKey: 'username', as: 'user' });
+    UserGroup.belongsTo(models.Group, { foreignKey: 'groupId', as: 'group' });
+  };
 
   return UserGroup;
 };

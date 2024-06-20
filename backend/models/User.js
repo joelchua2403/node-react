@@ -5,6 +5,7 @@ module.exports = (sequelize, DataTypes) => {
     username: {
       type: DataTypes.STRING,
       allowNull: false,
+      primaryKey: true,
     },
     password: {
       type: DataTypes.TEXT,
@@ -12,10 +13,6 @@ module.exports = (sequelize, DataTypes) => {
     },
     email: {
       type: DataTypes.STRING,
-      allowNull: false,
-    },
-    role: {
-      type: DataTypes.ENUM('admin', 'user'),
       allowNull: false,
     },
     isDisabled: {
@@ -26,12 +23,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   User.associate = function(models) {
-    User.hasMany(models.Post, {
-      foreignKey: 'userId',
-      as: 'posts',
-      onDelete: 'cascade',
-    });
-    User.belongsToMany(models.Group, { through: 'UserGroup', foreignKey: 'userId', as: 'groups' });
+    User.belongsToMany(models.Group, { through: 'UserGroup', foreignKey: 'username', as: 'groups' });
   };
 
   return User;

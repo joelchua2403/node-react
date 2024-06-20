@@ -8,13 +8,29 @@ const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
 const { Op } = require('sequelize');
 
-const isAdmin = (req, res, next) => {
-    const token = req.headers['authorization'].split(' ')[1];
-    const decoded = jwt.verify(token, secretKey);
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
+const isAdmin = async (req, res, next) => {
+    try {
+      const token = req.headers['authorization'].split(' ')[1];
+      const decoded = jwt.verify(token, secretKey);
+  
+      // Find the user's groups
+      const userGroups = await UserGroup.findAll({
+        where: { username: decoded.username },
+        include: [{ model: Group, as: 'group' }]
+      });
+  
+      // Check if the user is in the admin group
+      const isAdmin = userGroups.some(userGroup => userGroup.group.name === 'admin');
+  
+      if (!isAdmin) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+  
+      next();
+    } catch (error) {
+      console.error('Failed to check admin group:', error);
+      res.status(500).json({ message: 'Failed to check admin group' });
     }
-    next();
   };
 
   // Create token
@@ -134,11 +150,11 @@ router.patch('/:id/disable', isAdmin, async (req, res) => {
 
 // Update email
 router.put('/update-email', verifyToken, async (req, res) => {
-    const userId = req.userId;
+    const username = req.username;
     const { newEmail } = req.body;
   
     try {
-      await User.update({ email: newEmail }, { where: { id: userId } });
+      await User.update({ email: newEmail }, { where: { username: username } });
       res.status(200).json({ message: 'Email updated successfully' });
     } catch (error) {
       console.error('Failed to update email:', error);
@@ -148,11 +164,11 @@ router.put('/update-email', verifyToken, async (req, res) => {
   
   // Update password
   router.put('/update-password', verifyToken, async (req, res) => {
-    const userId = req.userId;
+    const username = req.username;
     const { currentPassword, newPassword } = req.body;
   
     try {
-      const user = await User.findOne({ where: { id: userId } });
+      const user = await User.findOne({ where: { username: username } });
       const validPassword = await bcrypt.compare(currentPassword, user.password);
       if (!validPassword) {
         return res.status(401).json({ error: 'Current password is incorrect' });
@@ -161,7 +177,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
         return res.status(400).json({ error: 'Password does not meet requirements' });
     }
       const hashedPassword = await bcrypt.hash(newPassword, 8);
-      await User.update({ password: hashedPassword }, { where: { id: userId } });
+      await User.update({ password: hashedPassword }, { where: { username: username } });
       res.status(200).json({ message: 'Password updated successfully' });
     } catch (error) {
       console.error('Failed to update password:', error);
@@ -235,10 +251,12 @@ router.put('/update-email', verifyToken, async (req, res) => {
 
  // Fetch user info
 router.get('/profile', verifyToken, async (req, res) => {
-    const userId = req.userId;
+    
+    const username = req.username;
+    console.log('Username:', username)
   
     try {
-      const user = await User.findOne({ where: { id: userId }, attributes: ['username', 'email', 'role', 'password'] });
+      const user = await User.findOne({ where: { username: username }, attributes: ['username', 'email', 'password'] });
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
