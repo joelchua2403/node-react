@@ -60,4 +60,23 @@ router.get('/:app_acronym', verifyToken, async (req, res) => {
   }
 });
 
+// update task
+router.put('/:taskId', verifyToken, async (req, res) => {
+  const { taskId } = req.params;
+  const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
+
+  try {
+    const task = await Task.findOne({ where: { Task_id: taskId } });
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    await Task.update({ Task_name: Task_name, Task_description: Task_description, Task_plan: Task_plan, Task_notes: Task_notes, Task_state: Task_state, Task_owner: Task_owner }, { where: { Task_id: taskId } });
+    res.status(200).json({ message: 'Task updated successfully' });
+    } catch (error) {
+        console.error('Error updating task:', error);
+        res.status(500).json({ error: 'Error updating task' });
+        }
+        }
+        );
+
 module.exports = router;
