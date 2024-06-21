@@ -6,14 +6,21 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
       primaryKey: true,
+      validate: {
+        is: /^[a-zA-Z0-9_]+$/ // Only alphanumeric and underscore
+      }
     },
     App_Description: {
       type: DataTypes.TEXT,
-      allowNull: false,
+      allowNull: true, // Optional field
     },
     App_Rnumber: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      validate: {
+        isInt: true,
+        min: 1 // Must be positive integer and non-zero
+      }
     },
     App_startDate: {
       type: DataTypes.DATE,
@@ -23,25 +30,45 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: false,
     },
+    App_permit_Create: {
+      type: DataTypes.STRING,
+      allowNull: true, // Optional field
+      references: {
+        model: 'Group',
+        key: 'name'
+      }
+    },
     App_permit_Open: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true, // Optional field
+      references: {
+        model: 'Group',
+        key: 'name'
+      }
     },
     App_permit_toDoList: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true, // Optional field
+      references: {
+        model: 'Group',
+        key: 'name'
+      }
     },
     App_permit_Doing: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true, // Optional field
+      references: {
+        model: 'Group',
+        key: 'name'
+      }
     },
     App_permit_Done: {
       type: DataTypes.STRING,
-      allowNull: false,
-    },
-    App_permit_Create: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true, // Optional field
+      references: {
+        model: 'Group',
+        key: 'name'
+      }
     },
   }, {
     timestamps: false,

@@ -19,7 +19,9 @@ app.use('/posts', verifyToken, postRouter);
 app.use('/users', require('./routes/Users'));
 app.use('/groups',verifyToken, require('./routes/Groups'));
 app.use('/usergroups',verifyToken, require('./routes/UserGroups'));
-
+app.use('/tasks',verifyToken, require('./routes/Tasks'));
+app.use('/applications',verifyToken, require('./routes/Applications'));
+app.use('/plans',verifyToken, require('./routes/Plans'));
 
 
 
