@@ -4,7 +4,7 @@ const { Task, Application } = require('../models');
 const verifyToken = require('../middleware/authMiddleware');
 
 router.post('/create', verifyToken, async (req, res) => {
-  const { app_acronym, name, description, plan, notes } = req.body;
+  const { app_acronym, Task_name, Task_description, Task_plan, Task_notes } = req.body;
 
   console.log("app_acronym", app_acronym)
 
@@ -25,11 +25,11 @@ router.post('/create', verifyToken, async (req, res) => {
     // Create the new task
     const newTask = await Task.create({
       Task_id: taskId,
-      Task_name: name,
-      Task_description: description,
+      Task_name: Task_name,
+      Task_description: Task_description,
       Task_app_Acronym: app_acronym,
-      Task_plan: plan,
-      Task_notes: notes,
+      Task_plan: Task_plan,
+      Task_notes: Task_notes,
       Task_state: 'open',
       Task_creator: req.username,
       Task_owner: req.username,
@@ -64,6 +64,7 @@ router.get('/:app_acronym', verifyToken, async (req, res) => {
 router.put('/:taskId', verifyToken, async (req, res) => {
   const { taskId } = req.params;
   const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
+  console.log("Task_name", Task_name)
 
   try {
     const task = await Task.findOne({ where: { Task_id: taskId } });
