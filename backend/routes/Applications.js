@@ -13,4 +13,30 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.post('/create', async (req, res) => {
+    const { App_Acronym, App_Name, App_Description, App_Owner, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done } = req.body;
+    
+    try {
+        const application = await Application.create({
+        App_Acronym,
+        App_Name,
+        App_Description,
+        App_Owner,
+        App_Rnumber,
+        App_startDate,
+        App_endDate,
+        App_permit_Create,
+        App_permit_Open,
+        App_permit_toDoList,
+        App_permit_Doing,
+        App_permit_Done
+        });
+        res.status(201).json(application);
+    } catch (error) {
+        console.error('Error creating application:', error);
+        res.status(500).json({ error: 'Error creating application' });
+    }
+    }
+);
+
 module.exports = router;
