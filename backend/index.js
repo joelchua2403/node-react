@@ -14,8 +14,6 @@ app.use(cors(
 const db = require('./models');
 
 // Routes
-const postRouter = require('./routes/Posts');
-app.use('/posts', verifyToken, postRouter);
 app.use('/users', require('./routes/Users'));
 app.use('/groups',verifyToken, require('./routes/Groups'));
 app.use('/usergroups',verifyToken, require('./routes/UserGroups'));

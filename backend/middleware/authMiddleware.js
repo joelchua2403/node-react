@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const secretKey = 'secretkey';
 
 
+
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader) {
@@ -24,4 +25,7 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+
+
 module.exports = verifyToken;
+

@@ -64,7 +64,7 @@ const validatePassword = (password) => {
   };
 
  
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
       const users = await User.findAll({
         include: {
@@ -157,7 +157,7 @@ router.patch('/:username/enable', isAdmin, async (req, res) => {
 
 
 // Update email
-router.put('/update-email', verifyToken, async (req, res) => {
+router.put('/update-email', async (req, res) => {
     const username = req.username;
     const { newEmail } = req.body;
   
@@ -171,7 +171,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
   });
   
   // Update password
-  router.put('/update-password', verifyToken, async (req, res) => {
+  router.put('/update-password', async (req, res) => {
     const username = req.username;
     const { currentPassword, newPassword } = req.body;
   
@@ -193,7 +193,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
     }
   });
 
-  router.put('/update-groups', verifyToken, isAdmin, async (req, res) => {
+  router.put('/update-groups', isAdmin, async (req, res) => {
     const { username, groups } = req.body;
     try {
       const user = await User.findOne({ where: { username } });
@@ -216,7 +216,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
     }
   });
 
-  router.put('/:username', verifyToken, isAdmin, async (req, res) => {
+  router.put('/:username', isAdmin, async (req, res) => {
     const { username } = req.params;
     const { email, password, role, groups } = req.body;
   
@@ -258,7 +258,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
   
 
  // Fetch user info
-router.get('/profile', verifyToken, async (req, res) => {
+router.get('/profile', async (req, res) => {
     
     const username = req.username;
     console.log('Username:', username)

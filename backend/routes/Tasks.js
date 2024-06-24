@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { Task, Application } = require('../models');
-const verifyToken = require('../middleware/authMiddleware');
+const { verifyGroupProjectLead } = require('../middleware/groupAuthMiddleware');
 
-router.post('/create', verifyToken, async (req, res) => {
+router.post('/create', verifyGroupProjectLead, async (req, res) => {
   const { app_acronym, Task_name, Task_description, Task_plan, Task_notes } = req.body;
 
   console.log("app_acronym", app_acronym)
@@ -48,7 +48,7 @@ router.post('/create', verifyToken, async (req, res) => {
 });
 
 // fetch task for application
-router.get('/:app_acronym', verifyToken, async (req, res) => {
+router.get('/:app_acronym',  async (req, res) => {
   const { app_acronym } = req.params;
 
   try {
@@ -61,7 +61,7 @@ router.get('/:app_acronym', verifyToken, async (req, res) => {
 });
 
 // update task
-router.put('/:taskId', verifyToken, async (req, res) => {
+router.put('/:taskId',  async (req, res) => {
   const { taskId } = req.params;
   const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
   console.log("Task_name", Task_name)

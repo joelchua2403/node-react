@@ -8,7 +8,6 @@ const secretKey = 'secretkey'
 const verifyToken = require('../middleware/authMiddleware'); 
 
 
-
 router.get("/" , async (req, res) => {
     try {
         const groups = await Group.findAll();
@@ -20,7 +19,7 @@ router.get("/" , async (req, res) => {
     
 });
 
-router.get("/:groupId/members" , verifyToken, async (req, res) => {
+router.get("/:groupId/members" , async (req, res) => {
   const groupId = req.params.groupId;
  
   try {
@@ -81,7 +80,7 @@ router.post('/:groupId/join', async (req, res) => {
   });
 
   // Get posts for a specific group
-router.get('/:id/posts', verifyToken, async (req, res) => {
+router.get('/:id/posts',  async (req, res) => {
     const groupId = req.params.id;
 
     try {
@@ -94,7 +93,7 @@ router.get('/:id/posts', verifyToken, async (req, res) => {
 });
 
 // Create a post in a specific group
-router.post('/:id/posts', verifyToken, async (req, res) => {
+router.post('/:id/posts',  async (req, res) => {
     const groupId = req.params.id;
     const { title, content, userId } = req.body;
 

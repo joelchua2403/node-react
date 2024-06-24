@@ -4,7 +4,7 @@ const { Plan } = require('../models');
 const verifyToken = require('../middleware/authMiddleware');
 
 // Create a new plan
-router.post('/', verifyToken, async (req, res) => {
+router.post('/',  async (req, res) => {
   const { Plan_MVP_name, Plan_Description, Plan_startDate, Plan_endDate, Plan_app_Acronym } = req.body;
 
   try {
@@ -23,7 +23,7 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 // Get all plans
-router.get('/:app_acronym', verifyToken, async (req, res) => {
+router.get('/:app_acronym',  async (req, res) => {
     const { app_acronym } = req.params;
   try {
     const plans = await Plan.findAll({ where: { Plan_app_Acronym: app_acronym }});
@@ -35,7 +35,7 @@ router.get('/:app_acronym', verifyToken, async (req, res) => {
 });
 
 // Get a single plan by ID
-router.get('/:planId', verifyToken, async (req, res) => {
+router.get('/:planId',  async (req, res) => {
   const { planId } = req.params;
 
   try {
@@ -76,7 +76,7 @@ router.put('/:planId', verifyToken, async (req, res) => {
 });
 
 // Delete a plan by ID
-router.delete('/:planId', verifyToken, async (req, res) => {
+router.delete('/:planId', async (req, res) => {
   const { planId } = req.params;
 
   try {

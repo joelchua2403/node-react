@@ -6,7 +6,7 @@ const { sequelize } = require('../models');
 
 // Fetch all users with their groups
 
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const users = await sequelize.query(`
       SELECT u.username, u.email, u.isDisabled, g.name as groupName
@@ -36,7 +36,7 @@ router.get('/', verifyToken, async (req, res) => {
 
 
 // Join a group
-router.post('/:groupId/join', verifyToken, async (req, res) => {
+router.post('/:groupId/join',  async (req, res) => {
   const { groupId } = req.params;
   const { username } = req.body;
 
