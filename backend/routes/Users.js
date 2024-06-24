@@ -81,37 +81,40 @@ router.get('/', async (req, res) => {
     }
   });
 
-router.post('/register', async (req, res) => {
-    const { username, password, email, role} = req.body;
-    console.log(username, password, email, role);
-    try {
 
+router.post('/register', verifyToken, isAdmin, async (req, res) => {
+    const { username, email, password, groups } = req.body;
+  
+    try {
         if (!validatePassword(password)) {
-            return res.status(400).json({ error: 'Password does not meet requirements' });
+          return res.status(400).json({ error: 'Password does not meet requirements' });
         }
-        const [existingUser] = await sequelize.query(`SELECT * FROM users WHERE username = '${username}'`);
-        if (existingUser.length > 0) {
-            return res.status(400).json({ error: 'Username already exists' });
-        }
-        const [existingEmail] = await sequelize.query(`SELECT * FROM users WHERE email = '${email}'`);
-        if (existingEmail.length>0) {
-            return res.status(400).json({ error: 'Email already exists' });
-        }
-    
-    const hashedPassword = await bcrypt.hash(password, 8);
-    const query = `
-    INSERT INTO users (username, password, email, role, isDisabled)
-    VALUES ('${username}', '${hashedPassword}', '${email}', '${role}', false)
-  `;
-  await sequelize.query(query, {
-    replacements: { username, password: hashedPassword, email, role },
-    type: sequelize.QueryTypes.INSERT,
-  });
-    res.json('User created');
-} catch (error) {
-    console.error('Failed to create user:', error);
-    res.status(500).json({ error: 'Failed to create user' });
-}
+        hashedPassword = await bcrypt.hash(password, 8);
+  
+        const newUser = await User.create({
+            username: username,
+            email: email,
+            password: hashedPassword,
+            groups: groups
+          });
+  
+      if (groups) {
+        const groupInstances = await Group.findAll({
+          where: {
+            name: { [Op.in]: groups }
+          }
+        });
+  
+        await newUser.setGroups(groupInstances);
+      }
+      await newUser.save();
+      
+
+      res.status(200).json({ message: 'User created successfully' });
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+    }
 });
 
 
@@ -258,10 +261,9 @@ router.put('/update-email', async (req, res) => {
   
 
  // Fetch user info
-router.get('/profile', async (req, res) => {
+router.get('/profile', verifyToken, async (req, res) => {
     
     const username = req.username;
-    console.log('Username:', username)
   
     try {
       const user = await User.findOne({ where: { username: username }, attributes: ['username', 'email', 'password'] });

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { Task, Application } = require('../models');
-const { verifyGroupProjectLead } = require('../middleware/groupAuthMiddleware');
+const { verifyCreatePermission, verifyDoingPermission, verifyDonePermission, verifyOpenPermission, verifyToDoListPermission } = require('../middleware/groupAuthMiddleware');
 
-router.post('/create', verifyGroupProjectLead, async (req, res) => {
+router.post('/create', verifyCreatePermission, async (req, res) => {
   const { app_acronym, Task_name, Task_description, Task_plan, Task_notes } = req.body;
 
   console.log("app_acronym", app_acronym)
@@ -61,7 +61,7 @@ router.get('/:app_acronym',  async (req, res) => {
 });
 
 // update task
-router.put('/:taskId',  async (req, res) => {
+router.put('/:taskId/release', verifyOpenPermission,  async (req, res) => {
   const { taskId } = req.params;
   const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
   console.log("Task_name", Task_name)
@@ -79,5 +79,65 @@ router.put('/:taskId',  async (req, res) => {
         }
         }
         );
+
+        router.put('/:taskId/Acknowledge', verifyToDoListPermission, async (req, res) => {
+            const { taskId } = req.params;
+            const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
+            console.log("Task_name", Task_name)
+          
+            try {
+              const task = await Task.findOne({ where: { Task_id: taskId } });
+              if (!task) {
+                return res.status(404).json({ error: 'Task not found' });
+              }
+              await Task.update({ Task_name: Task_name, Task_description: Task_description, Task_plan: Task_plan, Task_notes: Task_notes, Task_state: Task_state, Task_owner: Task_owner }, { where: { Task_id: taskId } });
+              res.status(200).json({ message: 'Task updated successfully' });
+              } catch (error) {
+                  console.error('Error updating task:', error);
+                  res.status(500).json({ error: 'Error updating task' });
+                  }
+                  }
+                  );
+    
+   
+                  router.put('/:taskId/CompleteOrHalt', verifyDoingPermission, async (req, res) => {
+                    const { taskId } = req.params;
+                    const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
+                    console.log("Task_name", Task_name)
+                  
+                    try {
+                      const task = await Task.findOne({ where: { Task_id: taskId } });
+                      if (!task) {
+                        return res.status(404).json({ error: 'Task not found' });
+                      }
+                      await Task.update({ Task_name: Task_name, Task_description: Task_description, Task_plan: Task_plan, Task_notes: Task_notes, Task_state: Task_state, Task_owner: Task_owner }, { where: { Task_id: taskId } });
+                      res.status(200).json({ message: 'Task updated successfully' });
+                      } catch (error) {
+                          console.error('Error updating task:', error);
+                          res.status(500).json({ error: 'Error updating task' });
+                          }
+                          }
+                          );     
+                          
+                          router.put('/:taskId/AcceptOrReject', verifyDonePermission, async (req, res) => {
+                            const { taskId } = req.params;
+                            const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
+                            console.log("Task_name", Task_name)
+                          
+                            try {
+                              const task = await Task.findOne({ where: { Task_id: taskId } });
+                              if (!task) {
+                                return res.status(404).json({ error: 'Task not found' });
+                              }
+                              await Task.update({ Task_name: Task_name, Task_description: Task_description, Task_plan: Task_plan, Task_notes: Task_notes, Task_state: Task_state, Task_owner: Task_owner }, { where: { Task_id: taskId } });
+                              res.status(200).json({ message: 'Task updated successfully' });
+                              } catch (error) {
+                                  console.error('Error updating task:', error);
+                                  res.status(500).json({ error: 'Error updating task' });
+                                  }
+                                  }
+                                  );
+                    
+          
 
 module.exports = router;
