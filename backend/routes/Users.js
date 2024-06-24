@@ -137,7 +137,7 @@ router.patch('/:username/enable', isAdmin, async (req, res) => {
 
 
 // Update email
-router.put('/update-email', async (req, res) => {
+router.put('/update-email', verifyToken, async (req, res) => {
     const username = req.username;
     const { newEmail } = req.body;
   
@@ -151,7 +151,7 @@ router.put('/update-email', async (req, res) => {
   });
   
   // Update password
-  router.put('/update-password', async (req, res) => {
+  router.put('/update-password', verifyToken, async (req, res) => {
     const username = req.username;
     const { currentPassword, newPassword } = req.body;
   
