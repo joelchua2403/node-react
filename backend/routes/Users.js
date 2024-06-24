@@ -7,31 +7,8 @@ const secretKey = 'secretkey';
 const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { isAdmin } = require('../middleware/groupAuthMiddleware');
 
-const isAdmin = async (req, res, next) => {
-    try {
-      const token = req.headers['authorization'].split(' ')[1];
-      const decoded = jwt.verify(token, secretKey);
-  
-      // Find the user's groups
-      const userGroups = await UserGroup.findAll({
-        where: { username: decoded.username },
-        include: [{ model: Group, as: 'group' }]
-      });
-  
-      // Check if the user is in the admin group
-      const isAdmin = userGroups.some(userGroup => userGroup.group.name === 'admin');
-  
-      if (!isAdmin) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
-  
-      next();
-    } catch (error) {
-      console.error('Failed to check admin group:', error);
-      res.status(500).json({ message: 'Failed to check admin group' });
-    }
-  };
 
   // Create token
   const createToken = (user, req) => {

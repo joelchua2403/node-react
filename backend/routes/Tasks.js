@@ -4,13 +4,13 @@ const { Task, Application } = require('../models');
 const { verifyCreatePermission, verifyDoingPermission, verifyDonePermission, verifyOpenPermission, verifyToDoListPermission } = require('../middleware/groupAuthMiddleware');
 
 router.post('/create', verifyCreatePermission, async (req, res) => {
-  const { app_acronym, Task_name, Task_description, Task_plan, Task_notes } = req.body;
+  const { Task_app_Acronym, Task_name, Task_description, Task_plan, Task_notes } = req.body;
 
-  console.log("app_acronym", app_acronym)
+  console.log("app_acronym", Task_app_Acronym)
 
   try {
     // Fetch the application to get the current App_Rnumber
-    const application = await Application.findOne({ where: { App_Acronym: app_acronym } });
+    const application = await Application.findOne({ where: { App_Acronym: Task_app_Acronym } });
 
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
@@ -20,14 +20,14 @@ router.post('/create', verifyCreatePermission, async (req, res) => {
     const newRnumber = application.App_Rnumber + 1;
 
     // Generate the task_id
-    const taskId = `${app_acronym}_${newRnumber}`;
+    const taskId = `${Task_app_Acronym}_${newRnumber}`;
 
     // Create the new task
     const newTask = await Task.create({
       Task_id: taskId,
       Task_name: Task_name,
       Task_description: Task_description,
-      Task_app_Acronym: app_acronym,
+      Task_app_Acronym: Task_app_Acronym,
       Task_plan: Task_plan,
       Task_notes: Task_notes,
       Task_state: 'open',
@@ -119,7 +119,7 @@ router.put('/:taskId/release', verifyOpenPermission,  async (req, res) => {
                           }
                           );     
                           
-                          router.put('/:taskId/AcceptOrReject', verifyDonePermission, async (req, res) => {
+                          router.put('/:taskId/ApproveOrReject', verifyDonePermission, async (req, res) => {
                             const { taskId } = req.params;
                             const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;
                             console.log("Task_name", Task_name)
