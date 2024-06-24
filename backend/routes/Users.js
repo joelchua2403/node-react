@@ -142,11 +142,19 @@ router.post('/login', async (req, res) => {
     }
 });
 
-router.patch('/:id/disable', isAdmin, async (req, res) => {
-    const id = req.params.id;
-    await User.update({ isDisabled: true }, { where: { id: id } });
+router.patch('/:username/disable', isAdmin, async (req, res) => {
+    const username = req.params.username;
+    await User.update({ isDisabled: true }, { where: { username: username } });
     res.json('User disabled');
 });
+
+
+router.patch('/:username/enable', isAdmin, async (req, res) => {
+    const username = req.params.username;
+    await User.update({ isDisabled: false }, { where: { username: username } });
+    res.json('User enabled');
+});
+
 
 // Update email
 router.put('/update-email', verifyToken, async (req, res) => {
