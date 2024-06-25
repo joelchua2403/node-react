@@ -39,7 +39,7 @@ const validatePassword = (password) => {
   };
 
  
-router.get('/', async (req, res) => {
+router.get('/', isAdmin,  async (req, res) => {
     try {
       const users = await User.findAll({
         include: {
