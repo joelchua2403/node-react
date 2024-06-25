@@ -61,6 +61,9 @@ router.get('/:app_acronym',  async (req, res) => {
 });
 
 // update task
+router.put
+
+
 router.put('/:taskId/release', verifyOpenPermission,  async (req, res) => {
   const { taskId } = req.params;
   const { Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } = req.body;

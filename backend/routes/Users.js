@@ -13,9 +13,7 @@ const { isAdmin } = require('../middleware/groupAuthMiddleware');
   // Create token
   const createToken = (user, req) => {
     const tokenPayload = {
-      id: user.id,
       username: user.username,
-      role: user.role,
       ip: req.ip,
       browser: (req.headers['user-agent'])
     };
