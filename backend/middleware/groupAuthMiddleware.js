@@ -1,6 +1,41 @@
 const jwt = require('jsonwebtoken');
-const secretKey = 'secretkey';
-const { Group, UserGroup, Application } = require('../models');
+const secretKey = process.env.SECRET_KEY;
+const { Group, UserGroup, Application, User } = require('../models');
+
+
+const isDisabled = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ auth: false, message: 'No token provided' });
+  }
+
+  const tokenParts = authHeader.split(' ');
+  if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
+    return res.status(401).json({ auth: false, message: 'Token format incorrect' });
+  }
+
+  const token = tokenParts[1];
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const username = decoded.username;
+
+    const user = await User.findOne({ where: { username } });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isDisabled) {
+      return res.status(403).json({ message: 'Account is disabled' });
+    }
+
+    req.username = username;
+    next();
+  } catch (error) {
+    console.error('Failed to verify token or check user status:', error);
+    return res.status(500).json({ auth: false, message: 'Failed to verify user status' });
+  }
+};
 
 
 const CheckGroup = async (username, groupName) => {
@@ -124,5 +159,6 @@ const verifyDonePermission = verifyGroup('Done');
     verifyDoingPermission,
     verifyDonePermission,
     CheckGroup,
-    isAdmin
+    isAdmin,
+    isDisabled
   } ;

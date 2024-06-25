@@ -7,7 +7,7 @@ const secretKey = 'secretkey';
 const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
 const { Op } = require('sequelize');
-const { isAdmin } = require('../middleware/groupAuthMiddleware');
+const { isAdmin, isDisabled } = require('../middleware/groupAuthMiddleware');
 
 
   // Create token
@@ -120,14 +120,14 @@ router.post('/login', async (req, res) => {
     }
 });
 
-router.patch('/:username/disable', isAdmin, async (req, res) => {
+router.patch('/:username/disable', isAdmin, isDisabled, async (req, res) => {
     const username = req.params.username;
     await User.update({ isDisabled: true }, { where: { username: username } });
     res.json('User disabled');
 });
 
 
-router.patch('/:username/enable', isAdmin, async (req, res) => {
+router.patch('/:username/enable', isAdmin, isDisabled, async (req, res) => {
     const username = req.params.username;
     await User.update({ isDisabled: false }, { where: { username: username } });
     res.json('User enabled');
@@ -135,7 +135,7 @@ router.patch('/:username/enable', isAdmin, async (req, res) => {
 
 
 // Update email
-router.put('/update-email', verifyToken, async (req, res) => {
+router.put('/update-email', verifyToken, isDisabled, async (req, res) => {
     const username = req.username;
     const { newEmail } = req.body;
   
@@ -149,7 +149,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
   });
   
   // Update password
-  router.put('/update-password', verifyToken, async (req, res) => {
+  router.put('/update-password', verifyToken, isDisabled, async (req, res) => {
     const username = req.username;
     const { currentPassword, newPassword } = req.body;
   
@@ -171,7 +171,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
     }
   });
 
-  router.put('/update-groups', isAdmin, async (req, res) => {
+  router.put('/update-groups', isAdmin, isDisabled, async (req, res) => {
     const { username, groups } = req.body;
     try {
       const user = await User.findOne({ where: { username } });
@@ -194,7 +194,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
     }
   });
 
-  router.put('/:username', isAdmin, async (req, res) => {
+  router.put('/:username', isAdmin, isDisabled, async (req, res) => {
     const { username } = req.params;
     const { email, password, role, groups } = req.body;
   
@@ -236,7 +236,7 @@ router.put('/update-email', verifyToken, async (req, res) => {
   
 
  // Fetch user info
-router.get('/profile', verifyToken, async (req, res) => {
+router.get('/profile', verifyToken, isDisabled, async (req, res) => {
     
     const username = req.username;
   
@@ -247,8 +247,12 @@ router.get('/profile', verifyToken, async (req, res) => {
       }
       res.status(200).json(user);
     } catch (error) {
-      console.error('Failed to fetch user info:', error);
-      res.status(500).json({ error: 'Failed to fetch user info' });
+        if (error.response && error.response.status === 403 && error.response.data.message === 'Request failed with status code 403') {
+            navigate('/disabled-account'); }
+            else {
+                console.error('Failed to fetch user info:', error);
+                res.status(500).json({ error: 'Failed to fetch user info' });
+            }
     }
   });
 

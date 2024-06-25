@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const verifyToken = require('./middleware/authMiddleware');
+const { isDisabled } = require('./middleware/groupAuthMiddleware');
 app.use(express.json());
 const cors = require('cors');
 app.use(cors(
@@ -16,11 +17,11 @@ const db = require('./models');
 
 // Routes
 app.use('/users', require('./routes/Users'));
-app.use('/groups',verifyToken, require('./routes/Groups'));
-app.use('/usergroups',verifyToken, require('./routes/UserGroups'));
-app.use('/tasks',verifyToken, require('./routes/Tasks'));
-app.use('/applications',verifyToken, require('./routes/Applications'));
-app.use('/plans',verifyToken, require('./routes/Plans'));
+app.use('/groups',verifyToken, isDisabled, require('./routes/Groups'));
+app.use('/usergroups',verifyToken,isDisabled, require('./routes/UserGroups'));
+app.use('/tasks',verifyToken, isDisabled, require('./routes/Tasks'));
+app.use('/applications',verifyToken, isDisabled, require('./routes/Applications'));
+app.use('/plans',verifyToken, isDisabled, require('./routes/Plans'));
 
 
 
