@@ -61,7 +61,23 @@ router.get('/:app_acronym',  async (req, res) => {
 });
 
 // update task
-router.put
+router.put('/:taskId', verifyOpenPermission, async (req, res) => {
+    const { taskId } = req.params;
+    const { Task_notes } = req.body;
+    
+    try {
+        const task = await Task.findOne({ where: { Task_id: taskId } });
+        if (!task) {
+        return res.status(404).json({ error: 'Task not found' });
+        }
+        await Task.update({Task_notes: Task_notes }, { where: { Task_id: taskId } });
+        res.status(200).json({ message: 'Task updated successfully' });
+    } catch (error) {
+        console.error('Error updating task:', error);
+        res.status(500).json({ error: 'Error updating task' });
+    }
+    }
+    );
 
 
 router.put('/:taskId/release', verifyOpenPermission,  async (req, res) => {
@@ -82,6 +98,7 @@ router.put('/:taskId/release', verifyOpenPermission,  async (req, res) => {
         }
         }
         );
+    
 
         router.put('/:taskId/Acknowledge', verifyToDoListPermission, async (req, res) => {
             const { taskId } = req.params;
