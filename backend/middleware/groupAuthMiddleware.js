@@ -160,11 +160,12 @@ const verifyGroup = (requiredPermission) => {
 
       const groupToCheck = application[`App_permit_${requiredPermission}`];
       const isInGroup = await CheckGroup(username, groupToCheck);
-  
+      
 
       if (!isInGroup) {
         return res.status(403).json({ message: 'Access denied' });
       }
+
 
       req.username = username;
       next();
@@ -189,5 +190,6 @@ const verifyDonePermission = verifyGroup('Done');
     CheckGroup,
     isAdmin,
     isDisabled,
-    isTaskOwner
+    isTaskOwner,
+    verifyGroup
   } ;

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { Group, UserGroup, User } = require('../models');
+const { Group, UserGroup, User, Application } = require('../models');
 const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
-const { CheckGroup } = require('../middleware/groupAuthMiddleware');
+const { CheckGroup, verifyCreatePermission } = require('../middleware/groupAuthMiddleware');
 
 // Fetch all users with their groups
 
@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get all groups for a user
-router.get('/:username/:app_acronym', async (req, res) => {
+router.get('/:username/:app_acronym',  async (req, res) => {
   const { username, app_acronym } = req.params;
 console.log('username:', username);
 console.log('app_acronym:', app_acronym);
@@ -56,8 +56,26 @@ console.log('app_acronym:', app_acronym);
     }
     const isInGroupProjectManager = await CheckGroup(username, `${app_acronym}_Pm`);
 
+    const application = await Application.findOne({
+      where: { App_Acronym: app_acronym },
+      attributes: [
+        'App_permit_Create', 'App_permit_Open', 'App_permit_toDoList',
+        'App_permit_Doing', 'App_permit_Done'
+      ]
+    });
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    const groupToCheck = application['App_permit_Create'];
+    const isAbleToCreate = await CheckGroup(username, groupToCheck);
+    
+
+
+
     res.json({
-      isInGroupProjectManager
+      isInGroupProjectManager,
+      isAbleToCreate
     });
   } catch (error) {
     console.error('Error fetching user groups:', error);
