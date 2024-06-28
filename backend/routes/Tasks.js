@@ -9,7 +9,7 @@ const {
   verifyToDoListPermission,
   isTaskOwner,
 } = require("../middleware/groupAuthMiddleware");
-const { transactionLockMiddleware } = require("../middleware/raceConditionMiddleware");
+const { taskTransactionLockMiddleware } = require("../middleware/raceConditionMiddleware");
 
 router.post("/create", verifyCreatePermission, async (req, res) => {
   const {
@@ -99,7 +99,7 @@ router.put("/:taskId", isTaskOwner, async (req, res) => {
   }
 });
 
-router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
+router.put("/:taskId/release", verifyOpenPermission, taskTransactionLockMiddleware("Task", "taskId"), async (req, res) => {
   const { taskId } = req.params;
   const {
     Task_name,
@@ -110,34 +110,47 @@ router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
     Task_owner,
   } = req.body;
   console.log("Task_name", Task_name);
-
   try {
-    const task = await Task.findOne({ where: { Task_id: taskId } });
+    const task = req.record; // This should be set by the transactionLockMiddleware
     if (!task) {
+      await req.transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
-    await Task.update(
-      {
-        Task_name: Task_name,
-        Task_description: Task_description,
-        Task_plan: Task_plan,
-        Task_notes: Task_notes,
-        Task_state: Task_state,
-        Task_owner: Task_owner,
-      },
-      { where: { Task_id: taskId } }
-    );
-    res.status(200).json({ message: "Task updated successfully" });
-  } catch (error) {
-    console.error("Error updating task:", error);
-    res.status(500).json({ error: "Error updating task" });
+
+    if (task.Task_state !== "open") {
+        await req.transaction.rollback();
+        return res.status(403).json({ error: "Task has already been acknowledged by a user." });
+        }
+
+      task.Task_name = Task_name;
+      task.Task_description = Task_description;
+      task.Task_plan = Task_plan;
+      task.Task_notes = Task_notes;
+      task.Task_state = "to-do"; // Acknowledge action changes state to 'doing'
+      task.Task_owner = Task_owner;
+
+      // for testing purposes
+       setTimeout(() => {
+         console.log("Task is now in progress.");
+       }, 5000);    
+      
+      await task.save({ transaction: req.transaction });
+      console.log('task completed')
+
+      await req.transaction.commit();
+      res.status(200).json({ message: "Task released successfully", task });
+    } catch (error) {
+      await req.transaction.rollback();
+      console.error("Error updating task:", error);
+      res.status(500).json({ error: "Error updating task" });
+    }
   }
-});
+);
 
 router.put(
   "/:taskId/Acknowledge",
   verifyToDoListPermission,
-  transactionLockMiddleware("Task", "taskId"),
+  taskTransactionLockMiddleware("Task", "taskId"),
   async (req, res) => {
     const {
       Task_name,

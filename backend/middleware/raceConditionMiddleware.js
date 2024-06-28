@@ -1,6 +1,6 @@
 const { sequelize } = require('../models');
 
-const transactionLockMiddleware = (modelName, idField = 'id') => async (req, res, next) => {
+const taskTransactionLockMiddleware = (modelName, idField = 'id') => async (req, res, next) => {
     const id = req.params[idField];
   if (!id) {
     return res.status(400).json({ message: `Missing required parameter: ${idField}` });
@@ -15,6 +15,40 @@ const transactionLockMiddleware = (modelName, idField = 'id') => async (req, res
     // Lock the row for update to prevent race conditions
     const record = await Model.findOne({
       where: { 'Task_id': id },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+
+    if (!record) {
+      await transaction.rollback();
+      return res.status(404).json({ message: `${modelName} not found` });
+    }
+
+    req.record = record;
+    req.transaction = transaction;
+    next();
+  } catch (error) {
+    await transaction.rollback();
+    console.error(`Error in transaction lock middleware for ${modelName}:`, error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const applicationTransactionLockMiddleware = (modelName, idField = 'id') => async (req, res, next) => {
+    const id = req.params[idField];
+  if (!id) {
+    return res.status(400).json({ message: `Missing required parameter: ${idField}` });
+  }
+
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const Model = require('../models')[modelName];
+
+    // Lock the row for update to prevent race conditions
+    const record = await Model.findOne({
+      where: { 'App_Acronym': id },
       lock: transaction.LOCK.UPDATE,
       transaction,
     });
@@ -55,7 +89,8 @@ const rollbackTransaction = async (req, res) => {
 };
 
 module.exports = {
-  transactionLockMiddleware,
+    applicationTransactionLockMiddleware,
+  taskTransactionLockMiddleware,
   commitTransaction,
   rollbackTransaction,
 };
