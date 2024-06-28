@@ -12,56 +12,65 @@ const {
 const { taskTransactionLockMiddleware } = require("../middleware/raceConditionMiddleware");
 
 router.post("/create", verifyCreatePermission, async (req, res) => {
-  const {
-    Task_app_Acronym,
-    Task_name,
-    Task_description,
-    Task_plan,
-    Task_notes,
-  } = req.body;
-
-  console.log("app_acronym", Task_app_Acronym);
-
-  try {
-    // Fetch the application to get the current App_Rnumber
-    const application = await Application.findOne({
-      where: { App_Acronym: Task_app_Acronym },
-    });
-
-    if (!application) {
-      return res.status(404).json({ error: "Application not found" });
+    const {
+      Task_app_Acronym,
+      Task_name,
+      Task_description,
+      Task_plan,
+      Task_notes,
+    } = req.body;
+  
+    const transaction = await Task.sequelize.transaction();
+  
+    try {
+      // Fetch the application to get the current App_Rnumber
+      const application = await Application.findOne({
+        where: { App_Acronym: Task_app_Acronym },
+        lock: transaction.LOCK.UPDATE,
+        transaction,
+      });
+  
+      if (!application) {
+        await transaction.rollback();
+        return res.status(404).json({ error: "Application not found" });
+      }
+  
+      // Increment the App_Rnumber
+      const newRnumber = application.App_Rnumber + 1;
+  
+      // Generate the task_id
+      const taskId = `${Task_app_Acronym}_${newRnumber}`;
+  
+      // Create the new task
+      const newTask = await Task.create({
+        Task_id: taskId,
+        Task_name: Task_name,
+        Task_description: Task_description ? Task_description : '',
+        Task_app_Acronym: Task_app_Acronym,
+        Task_plan: Task_plan,
+        Task_notes: Task_notes,
+        Task_state: "open",
+        Task_creator: req.username,
+        Task_owner: req.username,
+        Task_createDate: new Date(),
+      }, { transaction });
+  
+      // Update the App_Rnumber in the application
+      application.App_Rnumber = newRnumber;
+      await application.save({ transaction });
+  
+      await transaction.commit();
+      res.status(201).json(newTask);
+    } catch (error) {
+      await transaction.rollback();
+      if (error.name === "SequelizeUniqueConstraintError") {
+        return res.status(409).json({ error: "Task already exists" });
+      } else {
+        console.error("Error creating task:", error);
+        res.status(500).json({ error: "Error creating task" });
+      }
     }
-
-    // Increment the App_Rnumber
-    const newRnumber = application.App_Rnumber + 1;
-
-    // Generate the task_id
-    const taskId = `${Task_app_Acronym}_${newRnumber}`;
-
-    // Create the new task
-    const newTask = await Task.create({
-      Task_id: taskId,
-      Task_name: Task_name,
-      Task_description: Task_description,
-      Task_app_Acronym: Task_app_Acronym,
-      Task_plan: Task_plan,
-      Task_notes: Task_notes,
-      Task_state: "open",
-      Task_creator: req.username,
-      Task_owner: req.username,
-      Task_createDate: new Date(),
-    });
-
-    // Update the App_Rnumber in the application
-    application.App_Rnumber = newRnumber;
-    await application.save();
-
-    res.status(201).json(newTask);
-  } catch (error) {
-    console.error("Error creating task:", error);
-    res.status(500).json({ error: "Error creating task" });
-  }
-});
+  });
 
 // fetch task for application
 router.get("/:app_acronym", async (req, res) => {
@@ -81,7 +90,7 @@ router.get("/:app_acronym", async (req, res) => {
 // update task
 router.put("/:taskId", isTaskOwner, async (req, res) => {
   const { taskId } = req.params;
-  const { Task_notes, Task_owner } = req.body;
+  const { Task_notes, Task_owner, Task_plan } = req.body;
 
   try {
     const task = await Task.findOne({ where: { Task_id: taskId } });
@@ -89,7 +98,7 @@ router.put("/:taskId", isTaskOwner, async (req, res) => {
       return res.status(404).json({ error: "Task not found" });
     }
     await Task.update(
-      { Task_notes: Task_notes, Task_owner: Task_owner },
+      { Task_notes: Task_notes, Task_owner: Task_owner, Task_plan: Task_plan},
       { where: { Task_id: taskId } }
     );
     res.status(200).json({ message: "Task updated successfully" });
