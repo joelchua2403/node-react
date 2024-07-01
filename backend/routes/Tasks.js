@@ -108,7 +108,7 @@ router.put("/:taskId", verifyOpenPermission, async (req, res) => {
   }
 });
 
-router.put("/:taskId/addnote",  async (req, res) => {
+router.put("/:taskId/addnote", async (req, res) => {
   const { taskId } = req.params;
   const { Task_notes, Task_owner, Task_plan } = req.body;
 
