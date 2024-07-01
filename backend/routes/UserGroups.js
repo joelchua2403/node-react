@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { Group, UserGroup, User } = require('../models');
+const { Group, UserGroup, User, Application } = require('../models');
 const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
+const { CheckGroup, verifyCreatePermission } = require('../middleware/groupAuthMiddleware');
 
 // Fetch all users with their groups
 
@@ -31,6 +32,70 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: err });
+  }
+});
+
+// Get all groups for a user
+router.get('/:username/:app_acronym',  async (req, res) => {
+  const { username, app_acronym } = req.params;
+console.log('username:', username);
+console.log('app_acronym:', app_acronym);
+  try {
+    const user = await User.findOne({
+      where: { username},
+      include: {
+        model: Group,
+        through: UserGroup,
+        as: 'groups',
+        attributes: ['name']
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const isInGroupProjectManager = await CheckGroup(username, `${app_acronym}_Pm`);
+
+    const application = await Application.findOne({
+      where: { App_Acronym: app_acronym },
+      attributes: [
+        'App_permit_Create', 'App_permit_Open', 'App_permit_toDoList',
+        'App_permit_Doing', 'App_permit_Done'
+      ]
+    });
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    var groupToCheck = application['App_permit_Create'];
+    const isAbleToCreate = await CheckGroup(username, groupToCheck);
+    
+    groupToCheck = application['App_permit_toDoList'];
+    const isAbleToToDo = await CheckGroup(username, groupToCheck);
+
+    groupToCheck = application['App_permit_Open'];
+    const isAbleToOpen = await CheckGroup(username, groupToCheck);
+
+    groupToCheck = application['App_permit_Doing'];
+    const isAbleToDoing = await CheckGroup(username, groupToCheck);
+
+    groupToCheck = application['App_permit_Done'];
+    const isAbleToDone = await CheckGroup(username, groupToCheck);
+    
+
+
+
+    res.json({
+      isInGroupProjectManager,
+      isAbleToCreate,
+      isAbleToToDo,
+      isAbleToOpen,
+      isAbleToDoing,
+      isAbleToDone,
+    });
+  } catch (error) {
+    console.error('Error fetching user groups:', error);
+    res.status(500).json({ error: 'Error fetching user groups' });
   }
 });
 

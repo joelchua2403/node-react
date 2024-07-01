@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { Application } = require('../models');
 const { verifyProjectLead } = require('../middleware/groupAuthMiddleware');
+const { applicationTransactionLockMiddleware } = require('../middleware/raceConditionMiddleware');
 
 router.get('/', async (req, res) => {
   try {
@@ -14,7 +15,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/create', verifyProjectLead ,async (req, res) => {
+router.post('/create', verifyProjectLead , async (req, res) => {
     const { App_Acronym, App_Name, App_Description, App_Owner, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done } = req.body;
     
     try {
@@ -41,11 +42,38 @@ router.post('/create', verifyProjectLead ,async (req, res) => {
 );
 
 // Update an application
+// Update an application
 router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
-    const { appAcronym } = req.params;
-    const {
-      App_Rnumber,
+  const { appAcronym } = req.params;
+  const {
+    App_Rnumber,
+    App_Description,
+    App_startDate,
+    App_endDate,
+    App_permit_Create,
+    App_permit_Open,
+    App_permit_toDoList,
+    App_permit_Doing,
+    App_permit_Done
+  } = req.body;
+
+  const transaction = await Application.sequelize.transaction();
+
+  try {
+    const application = await Application.findOne({
+      where: { App_Acronym: appAcronym },
+      lock: transaction.LOCK.UPDATE,
+      transaction
+    });
+
+    if (!application) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    await application.update({
       App_Description,
+      App_Rnumber,
       App_startDate,
       App_endDate,
       App_permit_Create,
@@ -53,32 +81,27 @@ router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
       App_permit_toDoList,
       App_permit_Doing,
       App_permit_Done
-    } = req.body;
-  
-    try {
-      const application = await Application.findOne({ where: { App_Acronym: appAcronym } });
-  
-      if (!application) {
-        return res.status(404).json({ error: 'Application not found' });
-      }
-  
-      application.App_Rnumber = App_Rnumber;
-      application.App_Description = App_Description;
-      application.App_startDate = App_startDate;
-      application.App_endDate = App_endDate;
-      application.App_permit_Create = App_permit_Create;
-      application.App_permit_Open = App_permit_Open;
-      application.App_permit_toDoList = App_permit_toDoList;
-      application.App_permit_Doing = App_permit_Doing;
-      application.App_permit_Done = App_permit_Done;
-  
-      await application.save();
-  
+    }, { transaction });
+
+    await transaction.commit();
+      console.log('Updated application:', application);
       res.status(200).json(application);
-    } catch (error) {
+
+  } catch (error) {
+    await transaction.rollback();
+    if (error.name === 'SequelizeTimeoutError') {
+      res.status(409).json({ error: 'Transaction is currently locked. Please try again later.' });
+    } else {
       console.error('Error updating application:', error);
       res.status(500).json({ error: 'Error updating application' });
     }
-  });
+  }
+});
+
+     
+  
+    
+  
+  
 
 module.exports = router;

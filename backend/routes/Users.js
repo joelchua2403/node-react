@@ -61,6 +61,10 @@ router.post('/register', verifyToken, isAdmin, async (req, res) => {
     const { username, email, password, groups } = req.body;
   
     try {
+      // if username already exists
+      if (await User.findOne({ where: { username } })) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
         if (!validatePassword(password)) {
           return res.status(400).json({ error: 'Password does not meet requirements' });
         }
@@ -87,7 +91,6 @@ router.post('/register', verifyToken, isAdmin, async (req, res) => {
 
       res.status(200).json({ message: 'User created successfully' });
     } catch (error) {
-      console.error('Failed to update user:', error);
       res.status(500).json({ error: 'Failed to create user' });
     }
 });
