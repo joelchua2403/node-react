@@ -54,7 +54,9 @@ console.log('app_acronym:', app_acronym);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    const isInGroupProjectManager = await CheckGroup(username, `${app_acronym}_Pm`);
+    //  const isInGroupProjectManager = await CheckGroup(username, `${app_acronym}_Pm`);
+
+    const isInGroupProjectManager = await CheckGroup(username, 'project manager');
 
     const application = await Application.findOne({
       where: { App_Acronym: app_acronym },
