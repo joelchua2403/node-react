@@ -67,15 +67,31 @@ console.log('app_acronym:', app_acronym);
       return res.status(404).json({ message: 'Application not found' });
     }
 
-    const groupToCheck = application['App_permit_Create'];
+    var groupToCheck = application['App_permit_Create'];
     const isAbleToCreate = await CheckGroup(username, groupToCheck);
+    
+    groupToCheck = application['App_permit_toDoList'];
+    const isAbleToToDo = await CheckGroup(username, groupToCheck);
+
+    groupToCheck = application['App_permit_Open'];
+    const isAbleToOpen = await CheckGroup(username, groupToCheck);
+
+    groupToCheck = application['App_permit_Doing'];
+    const isAbleToDoing = await CheckGroup(username, groupToCheck);
+
+    groupToCheck = application['App_permit_Done'];
+    const isAbleToDone = await CheckGroup(username, groupToCheck);
     
 
 
 
     res.json({
       isInGroupProjectManager,
-      isAbleToCreate
+      isAbleToCreate,
+      isAbleToToDo,
+      isAbleToOpen,
+      isAbleToDoing,
+      isAbleToDone,
     });
   } catch (error) {
     console.error('Error fetching user groups:', error);

@@ -88,7 +88,27 @@ router.get("/:app_acronym", async (req, res) => {
 });
 
 // update task
-router.put("/:taskId", isTaskOwner, async (req, res) => {
+router.put("/:taskId", verifyOpenPermission, async (req, res) => {
+  const { taskId } = req.params;
+  const { Task_notes, Task_owner, Task_plan } = req.body;
+
+  try {
+    const task = await Task.findOne({ where: { Task_id: taskId } });
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+    await Task.update(
+      { Task_notes: Task_notes, Task_owner: Task_owner, Task_plan: Task_plan},
+      { where: { Task_id: taskId } }
+    );
+    res.status(200).json({ message: "Task updated successfully" });
+  } catch (error) {
+    console.error("Error updating task:", error);
+    res.status(500).json({ error: "Error updating task" });
+  }
+});
+
+router.put("/:taskId/addnote",  async (req, res) => {
   const { taskId } = req.params;
   const { Task_notes, Task_owner, Task_plan } = req.body;
 
@@ -118,7 +138,6 @@ router.put("/:taskId/release", verifyOpenPermission, taskTransactionLockMiddlewa
     Task_state,
     Task_owner,
   } = req.body;
-  console.log("Task_name", Task_name);
   try {
     const task = req.record; // This should be set by the transactionLockMiddleware
     if (!task) {
@@ -138,10 +157,6 @@ router.put("/:taskId/release", verifyOpenPermission, taskTransactionLockMiddlewa
       task.Task_state = "to-do"; // Acknowledge action changes state to 'doing'
       task.Task_owner = Task_owner;
 
-      // for testing purposes
-       setTimeout(() => {
-         console.log("Task is now in progress.");
-       }, 5000);    
       
       await task.save({ transaction: req.transaction });
       console.log('task completed')
@@ -226,9 +241,6 @@ router.put(
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
-      if (task.Task_owner !== req.username) {
-        return res.status(403).json({ error: "You are not the Task Owner." });
-      }
       await Task.update(
         {
           Task_name: Task_name,
@@ -261,13 +273,25 @@ router.put(
       Task_state,
       Task_owner,
     } = req.body;
-    console.log("Task_name", Task_name);
 
     try {
       const task = await Task.findOne({ where: { Task_id: taskId } });
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
+      if (Task_state === "doing") {
+      await Task.update(
+        {
+          Task_name: Task_name,
+          Task_description: Task_description,
+          Task_plan: Task_plan,
+          Task_notes: Task_notes,
+          Task_state: Task_state
+        },
+        { where: { Task_id: taskId } }
+      );
+      res.status(200).json({ message: "Task updated successfully" });
+    } else {
       await Task.update(
         {
           Task_name: Task_name,
@@ -280,6 +304,7 @@ router.put(
         { where: { Task_id: taskId } }
       );
       res.status(200).json({ message: "Task updated successfully" });
+    }
     } catch (error) {
       console.error("Error updating task:", error);
       res.status(500).json({ error: "Error updating task" });
