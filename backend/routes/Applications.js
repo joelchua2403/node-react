@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { Application } = require('../models');
 const { verifyProjectLead } = require('../middleware/groupAuthMiddleware');
+const { broadcast } = require('../middleware/websocket');
 
 router.get('/', async (req, res) => {
   try {
@@ -32,6 +33,7 @@ router.post('/create', verifyProjectLead , async (req, res) => {
         App_permit_Doing,
         App_permit_Done
         });
+        broadcast({type: 'APPLICATION_CREATED', payload: application})
         res.status(201).json(application);
     } catch (error) {
         console.error('Error creating application:', error);
@@ -83,6 +85,7 @@ router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
+    broadcast({ type: 'APPLICATION_UPDATED', payload: application });
       console.log('Updated application:', application);
       res.status(200).json(application);
 
