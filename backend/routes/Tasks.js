@@ -92,17 +92,24 @@ router.put("/:taskId", verifyOpenPermission, async (req, res) => {
   const { taskId } = req.params;
   const { Task_notes, Task_owner, Task_plan } = req.body;
 
+  const transaction = await Task.sequelize.transaction();
+
   try {
-    const task = await Task.findOne({ where: { Task_id: taskId } });
+    const task = await Task.findOne({ where: { Task_id: taskId },
+      lock: transaction.LOCK.UPDATE,
+       transaction});
     if (!task) {
+      await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
     await Task.update(
-      { Task_notes: Task_notes, Task_owner: Task_owner, Task_plan: Task_plan},
-      { where: { Task_id: taskId } }
+      { Task_notes, Task_owner, Task_plan},
+      { transaction }
     );
+    await transaction.commit();
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
+    await transaction.rollback();
     console.error("Error updating task:", error);
     res.status(500).json({ error: "Error updating task" });
   }
@@ -110,25 +117,32 @@ router.put("/:taskId", verifyOpenPermission, async (req, res) => {
 
 router.put("/:taskId/addnote", async (req, res) => {
   const { taskId } = req.params;
-  const { Task_notes, Task_owner, Task_plan } = req.body;
+  const { Task_notes, Task_owner} = req.body;
+
+  const transaction = await Task.sequelize.transaction();
 
   try {
-    const task = await Task.findOne({ where: { Task_id: taskId } });
+    const task = await Task.findOne({ where: { Task_id: taskId },
+      lock: transaction.LOCK.UPDATE,
+       transaction});
     if (!task) {
+      await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
     await Task.update(
-      { Task_notes: Task_notes, Task_owner: Task_owner, Task_plan: Task_plan},
-      { where: { Task_id: taskId } }
+      { Task_notes, Task_owner},
+       { transaction }
     );
+    await transaction.commit();
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
+    await transaction.rollback();
     console.error("Error updating task:", error);
     res.status(500).json({ error: "Error updating task" });
   }
 });
 
-router.put("/:taskId/release", verifyOpenPermission, taskTransactionLockMiddleware("Task", "taskId"), async (req, res) => {
+router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
   const { taskId } = req.params;
   const {
     Task_name,
@@ -138,33 +152,32 @@ router.put("/:taskId/release", verifyOpenPermission, taskTransactionLockMiddlewa
     Task_state,
     Task_owner,
   } = req.body;
+
+  const transaction = await Task.sequelize.transaction();
+
   try {
-    const task = req.record; // This should be set by the transactionLockMiddleware
+    const task =  await Task.findOne({ where: { Task_id: taskId },
+      lock: transaction.LOCK.UPDATE,
+       transaction});
+
     if (!task) {
-      await req.transaction.rollback();
+      await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
 
     if (task.Task_state !== "open") {
-        await req.transaction.rollback();
+        await transaction.rollback();
         return res.status(403).json({ error: "Task has already been acknowledged by a user." });
         }
 
-      task.Task_name = Task_name;
-      task.Task_description = Task_description;
-      task.Task_plan = Task_plan;
-      task.Task_notes = Task_notes;
-      task.Task_state = "to-do"; // Acknowledge action changes state to 'doing'
-      task.Task_owner = Task_owner;
-
-      
-      await task.save({ transaction: req.transaction });
-      console.log('task completed')
-
-      await req.transaction.commit();
+      await task.update(
+        { Task_name, Task_description, Task_plan, Task_notes, Task_state: "to-do", Task_owner },
+       { transaction }
+      );
+      await transaction.commit();
       res.status(200).json({ message: "Task released successfully", task });
     } catch (error) {
-      await req.transaction.rollback();
+      await transaction.rollback();
       console.error("Error updating task:", error);
       res.status(500).json({ error: "Error updating task" });
     }
@@ -174,7 +187,6 @@ router.put("/:taskId/release", verifyOpenPermission, taskTransactionLockMiddlewa
 router.put(
   "/:taskId/Acknowledge",
   verifyToDoListPermission,
-  taskTransactionLockMiddleware("Task", "taskId"),
   async (req, res) => {
     const {
       Task_name,
@@ -184,37 +196,34 @@ router.put(
       Task_state,
       Task_owner,
     } = req.body;
+
+    const { taskId } = req.params;
+
+    const transaction = await Task.sequelize.transaction();
     try {
-      const task = req.record; // This should be set by the transactionLockMiddleware
+      const task =  await Task.findOne({ where: { Task_id: taskId },
+        lock: transaction.LOCK.UPDATE,
+         transaction});
+
       if (!task) {
-        await req.transaction.rollback();
+        await transaction.rollback();
         return res.status(404).json({ error: "Task not found" });
       }
 
       if (task.Task_state !== "to-do") {
-        await req.transaction.rollback();
+        await transaction.rollback();
         return res.status(403).json({ error: "Task has already been acknowledged by a user." });
         }
 
-      task.Task_name = Task_name;
-      task.Task_description = Task_description;
-      task.Task_plan = Task_plan;
-      task.Task_notes = Task_notes;
-      task.Task_state = "doing"; // Acknowledge action changes state to 'doing'
-      task.Task_owner = Task_owner;
+        await task.update(
+          { Task_name, Task_description, Task_plan, Task_notes, Task_state: "doing", Task_owner },
+          { transaction }
+        );
 
-      // for testing purposes
-    //   setTimeout(() => {
-    //     console.log("Task is now in progress.");
-    //   }, 5000);    
-      
-      await task.save({ transaction: req.transaction });
-      console.log('task completed')
-
-      await req.transaction.commit();
+      await transaction.commit();
       res.status(200).json({ message: "Task acknowledged successfully", task });
     } catch (error) {
-      await req.transaction.rollback();
+      await transaction.rollback();
       console.error("Error updating task:", error);
       res.status(500).json({ error: "Error updating task" });
     }
@@ -234,28 +243,49 @@ router.put(
       Task_state,
       Task_owner,
     } = req.body;
-    console.log("Task_name", Task_name);
+
+    const transaction = await Task.sequelize.transaction();
 
     try {
-      const task = await Task.findOne({ where: { Task_id: taskId } });
+      // Try to acquire a lock on the task row
+      const task = await Task.findOne({
+        where: { Task_id: taskId },
+        lock: transaction.LOCK.UPDATE,
+        transaction,
+      });
+
       if (!task) {
+        await transaction.rollback();
         return res.status(404).json({ error: "Task not found" });
       }
-      await Task.update(
-        {
-          Task_name: Task_name,
-          Task_description: Task_description,
-          Task_plan: Task_plan,
-          Task_notes: Task_notes,
-          Task_state: Task_state,
-          Task_owner: Task_owner,
-        },
-        { where: { Task_id: taskId } }
-      );
+
+      if (task.Task_state !== "doing") {
+        await transaction.rollback();
+        return res.status(403).json({ error: "Task has already been acknowledged by a user." });
+      }
+
+      // Perform the update within the transaction
+      await task.update({
+        Task_name,
+        Task_description,
+        Task_plan,
+        Task_notes,
+        Task_state,
+        Task_owner,
+      }, { transaction });
+
+      // Commit the transaction
+      await transaction.commit();
       res.status(200).json({ message: "Task updated successfully" });
     } catch (error) {
-      console.error("Error updating task:", error);
-      res.status(500).json({ error: "Error updating task" });
+      await transaction.rollback();
+
+      if (error.name === 'SequelizeTimeoutError' || error.name === 'SequelizeLockError') {
+        res.status(409).json({ error: 'Transaction lock timeout. Please try again.' });
+      } else {
+        console.error("Error updating task:", error);
+        res.status(500).json({ error: "Error updating task" });
+      }
     }
   }
 );
@@ -274,38 +304,32 @@ router.put(
       Task_owner,
     } = req.body;
 
+  const transaction = await Task.sequelize.transaction();
+
     try {
-      const task = await Task.findOne({ where: { Task_id: taskId } });
+      const task = await Task.findOne({ where: { Task_id: taskId },
+        lock: transaction.LOCK.UPDATE,
+         transaction}
+      );
       if (!task) {
+        await transaction.rollback();
         return res.status(404).json({ error: "Task not found" });
       }
-      if (Task_state === "doing") {
-      await Task.update(
-        {
-          Task_name: Task_name,
-          Task_description: Task_description,
-          Task_plan: Task_plan,
-          Task_notes: Task_notes,
-          Task_state: Task_state
-        },
-        { where: { Task_id: taskId } }
-      );
+     
+    // Perform the update within the transaction
+    await task.update({
+      Task_name,
+      Task_description,
+      Task_plan,
+      Task_notes,
+      Task_state,
+      Task_owner,
+    }, { transaction });
+
+    await transaction.commit();
       res.status(200).json({ message: "Task updated successfully" });
-    } else {
-      await Task.update(
-        {
-          Task_name: Task_name,
-          Task_description: Task_description,
-          Task_plan: Task_plan,
-          Task_notes: Task_notes,
-          Task_state: Task_state,
-          Task_owner: Task_owner,
-        },
-        { where: { Task_id: taskId } }
-      );
-      res.status(200).json({ message: "Task updated successfully" });
-    }
     } catch (error) {
+      await transaction.rollback();
       console.error("Error updating task:", error);
       res.status(500).json({ error: "Error updating task" });
     }
