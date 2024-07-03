@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Plan } = require('../models');
 const verifyToken = require('../middleware/authMiddleware');
+const { broadcast } = require('../middleware/websocket');
 
 // Create a new plan
 router.post('/',  async (req, res) => {
@@ -15,6 +16,7 @@ router.post('/',  async (req, res) => {
       Plan_endDate,
       Plan_app_Acronym,
     });
+    broadcast({ type: 'PLAN_CREATED', payload: newPlan });
     res.status(201).json(newPlan);
   } catch (error) {
     console.error('Failed to create plan:', error);

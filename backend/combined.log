@@ -95,3 +95,5 @@
 {"level":"info","message":"Server is running on port 3001","service":"your-service-name","timestamp":"2024-07-03 16:34:37"}
 {"level":"info","message":"Server is running on port 3001","service":"your-service-name","timestamp":"2024-07-03 16:34:40"}
 {"level":"info","message":"Server is running on port 3001","service":"your-service-name","timestamp":"2024-07-03 16:34:43"}
+{"level":"info","message":"Server is running on port 3001","service":"your-service-name","timestamp":"2024-07-03 16:42:36"}
+{"level":"info","message":"Server is running on port 3001","service":"your-service-name","timestamp":"2024-07-03 16:42:43"}
