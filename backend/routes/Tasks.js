@@ -9,67 +9,68 @@ const {
   verifyToDoListPermission,
   isTaskOwner,
 } = require("../middleware/groupAuthMiddleware");
+const { broadcast } = require("../middleware/websocket");
 
 router.post("/create", verifyCreatePermission, async (req, res) => {
-    const {
-      Task_app_Acronym,
-      Task_name,
-      Task_description,
-      Task_plan,
-      Task_notes,
-    } = req.body;
-  
-    const transaction = await Task.sequelize.transaction();
-  
-    try {
-      // Fetch the application to get the current App_Rnumber
-      const application = await Application.findOne({
-        where: { App_Acronym: Task_app_Acronym },
-        lock: transaction.LOCK.UPDATE,
-        transaction,
-      });
-  
-      if (!application) {
-        await transaction.rollback();
-        return res.status(404).json({ error: "Application not found" });
-      }
-  
-      // Increment the App_Rnumber
-      const newRnumber = application.App_Rnumber + 1;
-  
-      // Generate the task_id
-      const taskId = `${Task_app_Acronym}_${newRnumber}`;
-  
-      // Create the new task
-      const newTask = await Task.create({
-        Task_id: taskId,
-        Task_name: Task_name,
-        Task_description: Task_description ? Task_description : '',
-        Task_app_Acronym: Task_app_Acronym,
-        Task_plan: Task_plan,
-        Task_notes: Task_notes,
-        Task_state: "open",
-        Task_creator: req.username,
-        Task_owner: req.username,
-        Task_createDate: new Date(),
-      }, { transaction });
-  
-      // Update the App_Rnumber in the application
-      application.App_Rnumber = newRnumber;
-      await application.save({ transaction });
-  
-      await transaction.commit();
-      res.status(201).json(newTask);
-    } catch (error) {
+  const {
+    Task_app_Acronym,
+    Task_name,
+    Task_description,
+    Task_plan,
+    Task_notes,
+  } = req.body;
+
+  const transaction = await Task.sequelize.transaction();
+
+  try {
+    const application = await Application.findOne({
+      where: { App_Acronym: Task_app_Acronym },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+
+    if (!application) {
       await transaction.rollback();
-      if (error.name === "SequelizeUniqueConstraintError") {
-        return res.status(409).json({ error: "Task already exists" });
-      } else {
-        console.error("Error creating task:", error);
-        res.status(500).json({ error: "Error creating task" });
-      }
+      return res.status(404).json({ error: "Application not found" });
     }
-  });
+
+    const newRnumber = application.App_Rnumber + 1;
+    const taskId = `${Task_app_Acronym}_${newRnumber}`;
+
+    const newTask = await Task.create({
+      Task_id: taskId,
+      Task_name: Task_name,
+      Task_description: Task_description ? Task_description : '',
+      Task_app_Acronym: Task_app_Acronym,
+      Task_plan: Task_plan,
+      Task_notes: Task_notes,
+      Task_state: "open",
+      Task_creator: req.username,
+      Task_owner: req.username,
+      Task_createDate: new Date(),
+    }, { transaction });
+
+    application.App_Rnumber = newRnumber;
+    await application.save({ transaction });
+
+    await transaction.commit();
+
+    // Notify clients of the new task
+    broadcast({ type: 'TASK_CREATED', task: newTask });
+
+    res.status(201).json(newTask);
+  } catch (error) {
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({ error: "Task already exists" });
+    } else {
+      console.error("Error creating task:", error);
+      res.status(500).json({ error: "Error creating task" });
+    }
+  }
+});
 
 // fetch task for application
 router.get("/:app_acronym", async (req, res) => {
@@ -94,21 +95,31 @@ router.put("/:taskId", verifyOpenPermission, async (req, res) => {
   const transaction = await Task.sequelize.transaction();
 
   try {
-    const task = await Task.findOne({ where: { Task_id: taskId },
+    const task = await Task.findOne({
+      where: { Task_id: taskId },
       lock: transaction.LOCK.UPDATE,
-       transaction});
+      transaction,
+    });
     if (!task) {
       await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
-    await Task.update(
-      { Task_notes, Task_owner, Task_plan},
+    
+    await task.update(
+      { Task_notes, Task_owner, Task_plan },
       { transaction }
     );
+
     await transaction.commit();
+    
+    // Notify clients of the updated task
+    broadcast({ type: 'TASK_UPDATED', task });
+
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction.finished !== 'commit') {
+      await transaction.rollback();
+    }
     console.error("Error updating task:", error);
     res.status(500).json({ error: "Error updating task" });
   }
@@ -128,11 +139,14 @@ router.put("/:taskId/addnote", async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
-    await Task.update(
+    await task.update(
       { Task_notes, Task_owner},
        { transaction }
     );
     await transaction.commit();
+
+    // Notify clients of the updated task
+    broadcast({ type: 'NOTES_UPDATED', task: task });
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
     await transaction.rollback();
@@ -174,6 +188,7 @@ router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
        { transaction }
       );
       await transaction.commit();
+      broadcast({ type: 'TASK_UPDATED', task });
       res.status(200).json({ message: "Task released successfully", task });
     } catch (error) {
       await transaction.rollback();
@@ -220,6 +235,7 @@ router.put(
         );
 
       await transaction.commit();
+      broadcast({ type: 'TASK_UPDATED', task });
       res.status(200).json({ message: "Task acknowledged successfully", task });
     } catch (error) {
       await transaction.rollback();
@@ -275,6 +291,7 @@ router.put(
 
       // Commit the transaction
       await transaction.commit();
+      broadcast({ type: 'TASK_UPDATED', task });
       res.status(200).json({ message: "Task updated successfully" });
     } catch (error) {
       await transaction.rollback();
@@ -326,6 +343,7 @@ router.put(
     }, { transaction });
 
     await transaction.commit();
+    broadcast({ type: 'TASK_UPDATED', task });
       res.status(200).json({ message: "Task updated successfully" });
     } catch (error) {
       await transaction.rollback();
