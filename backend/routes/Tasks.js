@@ -9,7 +9,6 @@ const {
   verifyToDoListPermission,
   isTaskOwner,
 } = require("../middleware/groupAuthMiddleware");
-const { taskTransactionLockMiddleware } = require("../middleware/raceConditionMiddleware");
 
 router.post("/create", verifyCreatePermission, async (req, res) => {
     const {

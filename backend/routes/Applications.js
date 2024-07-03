@@ -3,7 +3,6 @@ const express = require('express');
 const router = express.Router();
 const { Application } = require('../models');
 const { verifyProjectLead } = require('../middleware/groupAuthMiddleware');
-const { applicationTransactionLockMiddleware } = require('../middleware/raceConditionMiddleware');
 
 router.get('/', async (req, res) => {
   try {
