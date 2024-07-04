@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const logger = require('./middleware/logger');
 const app = express();
 const { initializeWebSocket, broadcast } = require('./middleware/websocket');
 const verifyToken = require('./middleware/authMiddleware');
@@ -30,7 +29,6 @@ initializeWebSocket(server);
 db.sequelize.sync().then(() => {
   server.listen(3001, () => {
     console.log('Server is running on port 3001');
-    logger.info('Server is running on port 3001');
   });
 });
 

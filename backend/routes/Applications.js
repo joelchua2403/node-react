@@ -15,6 +15,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get a single application by acronym
+router.get('/:app_acronym', async (req, res) => {
+  const { app_acronym } = req.params;
+  try {
+    const application = await Application.findOne({ where: { App_Acronym: app_acronym } });
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    res.status(200).json(application);
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    res.status(500).json({ error: 'Failed to fetch application' });
+  }
+});
+
 router.post('/create', verifyProjectLead , async (req, res) => {
     const { App_Acronym, App_Name, App_Description, App_Owner, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done } = req.body;
     
