@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Task, Application } = require("../models");
+const { Task, Application, UserGroup, User, Group } = require("../models");
 const {
   verifyCreatePermission,
   verifyDoingPermission,
@@ -9,6 +9,36 @@ const {
   verifyToDoListPermission,
 } = require("../middleware/groupAuthMiddleware");
 const { broadcast } = require("../middleware/websocket");
+const nodemailer = require('nodemailer');
+
+// Create a transporter object
+const transporter = nodemailer.createTransport({
+  service: 'outlook',  
+  auth: {
+    user: process.env.EMAIL_USER,  
+    pass: process.env.EMAIL_PASSWORD,   
+  },
+});
+
+const sendTaskDoneNotification = async (emails, task) => {
+  console.log('Sending emails:', emails)
+  console.log('task owner:' , task.Task_owner)
+  const mailOptions = {
+    from: process.env.EMAIL_USER,  
+    to: emails.join(','),  // Join the array of emails into a comma-separated string
+    subject: `Task Completed: ${task.Task_name}`,
+    text: `The task "${task.Task_name}" has been completed by ${task.Task_owner} and is awaiting your review.`,
+    html: `<p>The task "<strong>${task.Task_name}</strong>" has been completed by ${task.Task_owner} and is awaiting your review.</p>`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Emails sent successfully');
+  } catch (error) {
+    console.error('Error sending emails:', error);
+  }
+};
+
 
 router.post("/create", verifyCreatePermission, async (req, res) => {
   const {
@@ -244,66 +274,91 @@ router.put(
   }
 );
 
-router.put(
-  "/:taskId/CompleteOrHalt",
-  verifyDoingPermission,
-  async (req, res) => {
-    const { taskId } = req.params;
-    const {
+
+router.put("/:taskId/CompleteOrHalt", verifyDoingPermission, async (req, res) => {
+  const { taskId } = req.params;
+  const {
+    Task_name,
+    Task_description,
+    Task_plan,
+    Task_notes,
+    Task_state,
+    Task_owner,
+  } = req.body;
+
+  const transaction = await Task.sequelize.transaction();
+
+  try {
+    // Try to acquire a lock on the task row
+    const task = await Task.findOne({
+      where: { Task_id: taskId },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+
+    if (!task) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    if (task.Task_state !== "doing") {
+      await transaction.rollback();
+      return res.status(403).json({ error: "Task has already been acknowledged by a user." });
+    }
+
+    // Perform the update within the transaction
+    await task.update({
       Task_name,
       Task_description,
       Task_plan,
       Task_notes,
       Task_state,
       Task_owner,
-    } = req.body;
+    }, { transaction });
 
-    const transaction = await Task.sequelize.transaction();
+    // Commit the transaction
+    await transaction.commit();
 
-    try {
-      // Try to acquire a lock on the task row
-      const task = await Task.findOne({
-        where: { Task_id: taskId },
-        lock: transaction.LOCK.UPDATE,
-        transaction,
-      });
+    // Broadcast the updated task
+    broadcast({ type: 'TASK_UPDATED', task });
+    // Send email notification if the task state is 'done'
+    if (Task_state === 'done') {
+      // Fetch the application to get the app_permit_done field
+      const application = await Application.findOne({ where: { App_Acronym: task.Task_app_Acronym } });
+      if (application) {
+        const groupName = application.App_permit_Done;
 
-      if (!task) {
-        await transaction.rollback();
-        return res.status(404).json({ error: "Task not found" });
-      }
+        // Fetch the group with the specified group name
+        const group = await Group.findOne({ where: { name: groupName } });
 
-      if (task.Task_state !== "doing") {
-        await transaction.rollback();
-        return res.status(403).json({ error: "Task has already been acknowledged by a user." });
-      }
+        if (group) {
+          // Fetch the users in that group through the UserGroup table
+          const userGroups = await UserGroup.findAll({
+            where: { groupId: group.id },
+            include: [{ model: User, as: 'user', attributes: ['email'] }]
+          });
 
-      // Perform the update within the transaction
-      await task.update({
-        Task_name,
-        Task_description,
-        Task_plan,
-        Task_notes,
-        Task_state,
-        Task_owner,
-      }, { transaction });
-
-      // Commit the transaction
-      await transaction.commit();
-      broadcast({ type: 'TASK_UPDATED', task });
-      res.status(200).json({ message: "Task updated successfully" });
-    } catch (error) {
-      await transaction.rollback();
-
-      if (error.name === 'SequelizeTimeoutError' || error.name === 'SequelizeLockError') {
-        res.status(409).json({ error: 'Transaction lock timeout. Please try again.' });
-      } else {
-        console.error("Error updating task:", error);
-        res.status(500).json({ error: "Error updating task" });
+          const emails = userGroups.map(userGroup => userGroup.user.email);
+          await sendTaskDoneNotification(emails, task);
+        }
       }
     }
+    res.status(200).json({ message: "Task updated successfully" });
+  } catch (error) {
+    // Rollback the transaction only if it hasn't been committed
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
+
+    if (error.name === 'SequelizeTimeoutError' || error.name === 'SequelizeLockError') {
+      res.status(409).json({ error: 'Transaction lock timeout. Please try again.' });
+    } else {
+      console.error("Error updating task:", error);
+      res.status(500).json({ error: "Error updating task" });
+    }
   }
-);
+});
+
 
 router.put(
   "/:taskId/ApproveOrReject",
