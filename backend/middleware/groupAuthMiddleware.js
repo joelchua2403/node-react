@@ -71,33 +71,7 @@ const isAdmin = async (req, res, next) => {
   }
 };
 
-const isTaskOwner = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader) {
-    return res.status(401).json({ auth: false, message: 'No token provided' });
-  }
 
-  const tokenParts = authHeader.split(' ');
-  if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
-    return res.status(401).json({ auth: false, message: 'Token format incorrect' });
-  }
-  const token = tokenParts[1];
-
-  const Task_owner = req.body.Task_owner;
-  try {
-    const decoded = jwt.verify(token, secretKey);
-    const username = decoded.username;
-    const isTaskOwner = (username === Task_owner);
-    if (!isTaskOwner) {
-      return res.status(403).json({ message: 'You are not the Task Owner.' });
-    }
-    req.username = username;
-    next();
-  } catch (error) {
-    console.error('Failed to verify token or check group:', error);
-    return res.status(500).json({ auth: false, message: 'Failed to verify user in required group' });
-  }
-};
 
 const verifyProjectLead = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -190,6 +164,33 @@ const verifyDonePermission = verifyGroup('Done');
     CheckGroup,
     isAdmin,
     isDisabled,
-    isTaskOwner,
     verifyGroup
   } ;
+
+  // const isTaskOwner = async (req, res, next) => {
+//   const authHeader = req.headers['authorization'];
+//   if (!authHeader) {
+//     return res.status(401).json({ auth: false, message: 'No token provided' });
+//   }
+
+//   const tokenParts = authHeader.split(' ');
+//   if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
+//     return res.status(401).json({ auth: false, message: 'Token format incorrect' });
+//   }
+//   const token = tokenParts[1];
+
+//   const Task_owner = req.body.Task_owner;
+//   try {
+//     const decoded = jwt.verify(token, secretKey);
+//     const username = decoded.username;
+//     const isTaskOwner = (username === Task_owner);
+//     if (!isTaskOwner) {
+//       return res.status(403).json({ message: 'You are not the Task Owner.' });
+//     }
+//     req.username = username;
+//     next();
+//   } catch (error) {
+//     console.error('Failed to verify token or check group:', error);
+//     return res.status(500).json({ auth: false, message: 'Failed to verify user in required group' });
+//   }
+// };

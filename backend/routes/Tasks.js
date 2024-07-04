@@ -7,7 +7,6 @@ const {
   verifyDonePermission,
   verifyOpenPermission,
   verifyToDoListPermission,
-  isTaskOwner,
 } = require("../middleware/groupAuthMiddleware");
 const { broadcast } = require("../middleware/websocket");
 

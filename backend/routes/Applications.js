@@ -58,7 +58,6 @@ router.post('/create', verifyProjectLead , async (req, res) => {
 );
 
 // Update an application
-// Update an application
 router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
   const { appAcronym } = req.params;
   const {

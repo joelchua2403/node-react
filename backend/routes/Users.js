@@ -17,7 +17,7 @@ const { isAdmin, isDisabled } = require('../middleware/groupAuthMiddleware');
       ip: req.ip,
       browser: (req.headers['user-agent'])
     };
-    return jwt.sign(tokenPayload, secretKey, { expiresIn: '1h' });
+    return jwt.sign(tokenPayload, secretKey, { expiresIn: '4h' });
     };
 
 
