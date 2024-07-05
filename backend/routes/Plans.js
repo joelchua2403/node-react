@@ -13,7 +13,23 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'All fields are required and cannot be null' });
   }
 
-  try {
+    try {
+    // Check if the plan name already exists for the given application
+    const [existingPlan] = await sequelize.query(
+      `SELECT * FROM Plans WHERE Plan_MVP_name = :Plan_MVP_name AND Plan_app_Acronym = :Plan_app_Acronym`,
+      {
+        replacements: {
+          Plan_MVP_name,
+          Plan_app_Acronym,
+        },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (existingPlan) {
+      return res.status(409).json({ error: 'Plan name already exists for this application' });
+    }
+
     const [result] = await sequelize.query(
       `INSERT INTO Plans 
         (Plan_MVP_name, Plan_startDate, Plan_endDate, Plan_app_Acronym) 
