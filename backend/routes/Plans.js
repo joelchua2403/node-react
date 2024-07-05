@@ -1,21 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const { Plan } = require('../models');
+const { sequelize } = require('../models'); // Import sequelize instance
 const verifyToken = require('../middleware/authMiddleware');
 const { broadcast } = require('../middleware/websocket');
 
 // Create a new plan
-router.post('/',  async (req, res) => {
-  const { Plan_MVP_name, Plan_Description, Plan_startDate, Plan_endDate, Plan_app_Acronym } = req.body;
+router.post('/', async (req, res) => {
+  const { Plan_MVP_name, Plan_startDate, Plan_endDate, Plan_app_Acronym } = req.body;
+
+  // Check if any of the required fields is null or undefined
+  if (!Plan_MVP_name || !Plan_startDate || !Plan_endDate || !Plan_app_Acronym) {
+    return res.status(400).json({ error: 'All fields are required and cannot be null' });
+  }
 
   try {
-    const newPlan = await Plan.create({
-      Plan_MVP_name,
-      Plan_Description,
-      Plan_startDate,
-      Plan_endDate,
-      Plan_app_Acronym,
-    });
+    const [result] = await sequelize.query(
+      `INSERT INTO Plans 
+        (Plan_MVP_name, Plan_startDate, Plan_endDate, Plan_app_Acronym) 
+      VALUES 
+        (:Plan_MVP_name, :Plan_startDate, :Plan_endDate, :Plan_app_Acronym) 
+        `,
+      {
+        replacements: {
+          Plan_MVP_name,
+          Plan_startDate,
+          Plan_endDate,
+          Plan_app_Acronym,
+        }
+      }
+    );
+    const newPlan = result[0];
     broadcast({ type: 'PLAN_CREATED', payload: newPlan });
     res.status(201).json(newPlan);
   } catch (error) {
@@ -25,10 +39,16 @@ router.post('/',  async (req, res) => {
 });
 
 // Get all plans
-router.get('/:app_acronym',  async (req, res) => {
-    const { app_acronym } = req.params;
+router.get('/:app_acronym', async (req, res) => {
+  const { app_acronym } = req.params;
   try {
-    const plans = await Plan.findAll({ where: { Plan_app_Acronym: app_acronym }});
+    const plans = await sequelize.query(
+      `SELECT * FROM Plans WHERE Plan_app_Acronym = :app_acronym`,
+      {
+        replacements: { app_acronym },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
     res.status(200).json(plans);
   } catch (error) {
     console.error('Failed to fetch plans:', error);
@@ -37,11 +57,17 @@ router.get('/:app_acronym',  async (req, res) => {
 });
 
 // Get a single plan by ID
-router.get('/:planId',  async (req, res) => {
+router.get('/:planId', async (req, res) => {
   const { planId } = req.params;
 
   try {
-    const plan = await Plan.findByPk(planId);
+    const [plan] = await sequelize.query(
+      `SELECT * FROM Plans WHERE id = :planId`,
+      {
+        replacements: { planId },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
     if (!plan) {
       return res.status(404).json({ error: 'Plan not found' });
     }
@@ -57,21 +83,55 @@ router.put('/:planId', verifyToken, async (req, res) => {
   const { planId } = req.params;
   const { Plan_MVP_name, Plan_Description, Plan_startDate, Plan_endDate, Plan_app_Acronym } = req.body;
 
+  const transaction = await sequelize.transaction();
+
   try {
-    const plan = await Plan.findByPk(planId);
+    const [plan] = await sequelize.query(
+      `SELECT * FROM Plans WHERE id = :planId FOR UPDATE`,
+      {
+        replacements: { planId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction
+      }
+    );
     if (!plan) {
+      await transaction.rollback();
       return res.status(404).json({ error: 'Plan not found' });
     }
 
-    plan.Plan_MVP_name = Plan_MVP_name;
-    plan.Plan_Description = Plan_Description;
-    plan.Plan_startDate = Plan_startDate;
-    plan.Plan_endDate = Plan_endDate;
-    plan.Plan_app_Acronym = Plan_app_Acronym;
+    await sequelize.query(
+      `UPDATE Plans SET 
+        Plan_MVP_name = :Plan_MVP_name, 
+        Plan_Description = :Plan_Description, 
+        Plan_startDate = :Plan_startDate, 
+        Plan_endDate = :Plan_endDate, 
+        Plan_app_Acronym = :Plan_app_Acronym 
+      WHERE id = :planId`,
+      {
+        replacements: {
+          Plan_MVP_name,
+          Plan_Description,
+          Plan_startDate,
+          Plan_endDate,
+          Plan_app_Acronym,
+          planId
+        },
+        transaction
+      }
+    );
 
-    await plan.save();
-    res.status(200).json(plan);
+    await transaction.commit();
+
+    res.status(200).json({
+      ...plan,
+      Plan_MVP_name,
+      Plan_Description,
+      Plan_startDate,
+      Plan_endDate,
+      Plan_app_Acronym
+    });
   } catch (error) {
+    await transaction.rollback();
     console.error('Failed to update plan:', error);
     res.status(500).json({ error: 'Failed to update plan' });
   }
@@ -81,15 +141,35 @@ router.put('/:planId', verifyToken, async (req, res) => {
 router.delete('/:planId', async (req, res) => {
   const { planId } = req.params;
 
+  const transaction = await sequelize.transaction();
+
   try {
-    const plan = await Plan.findByPk(planId);
+    const [plan] = await sequelize.query(
+      `SELECT * FROM Plans WHERE id = :planId FOR UPDATE`,
+      {
+        replacements: { planId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction
+      }
+    );
     if (!plan) {
+      await transaction.rollback();
       return res.status(404).json({ error: 'Plan not found' });
     }
 
-    await plan.destroy();
+    await sequelize.query(
+      `DELETE FROM Plans WHERE id = :planId`,
+      {
+        replacements: { planId },
+        transaction
+      }
+    );
+
+    await transaction.commit();
+
     res.status(200).json({ message: 'Plan deleted successfully' });
   } catch (error) {
+    await transaction.rollback();
     console.error('Failed to delete plan:', error);
     res.status(500).json({ error: 'Failed to delete plan' });
   }

@@ -1,13 +1,15 @@
-// routes/applications.js
 const express = require('express');
 const router = express.Router();
-const { Application } = require('../models');
+const { sequelize } = require('../models'); // Import sequelize instance
 const { verifyProjectLead } = require('../middleware/groupAuthMiddleware');
 const { broadcast } = require('../middleware/websocket');
 
 router.get('/', async (req, res) => {
   try {
-    const applications = await Application.findAll();
+    const applications = await sequelize.query(
+      `SELECT * FROM Applications`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
     res.json(applications);
   } catch (error) {
     console.error('Error fetching applications:', error);
@@ -19,7 +21,13 @@ router.get('/', async (req, res) => {
 router.get('/:app_acronym', async (req, res) => {
   const { app_acronym } = req.params;
   try {
-    const application = await Application.findOne({ where: { App_Acronym: app_acronym } });
+    const [application] = await sequelize.query(
+      `SELECT * FROM Applications WHERE App_Acronym = :app_acronym`,
+      {
+        replacements: { app_acronym },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }
@@ -30,32 +38,73 @@ router.get('/:app_acronym', async (req, res) => {
   }
 });
 
-router.post('/create', verifyProjectLead , async (req, res) => {
-    const { App_Acronym, App_Name, App_Description, App_Owner, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done } = req.body;
-    
-    try {
-        const application = await Application.create({
-        App_Acronym,
-        App_Name,
-        App_Description,
-        App_Owner,
-        App_Rnumber,
-        App_startDate,
-        App_endDate,
-        App_permit_Create,
-        App_permit_Open,
-        App_permit_toDoList,
-        App_permit_Doing,
-        App_permit_Done
-        });
-        broadcast({type: 'APPLICATION_CREATED', payload: application})
-        res.status(201).json(application);
-    } catch (error) {
-        console.error('Error creating application:', error);
-        res.status(500).json({ error: 'Error creating application' });
+router.post('/create', verifyProjectLead, async (req, res) => {
+  const {
+    App_Acronym,
+    App_Name,
+    App_Description,
+    App_Owner,
+    App_Rnumber,
+    App_startDate,
+    App_endDate,
+    App_permit_Create,
+    App_permit_Open,
+    App_permit_toDoList,
+    App_permit_Doing,
+    App_permit_Done
+  } = req.body;
+
+  // Check for null or undefined values
+  if (!App_Acronym || !App_Rnumber || !App_startDate || !App_endDate) {
+    return res.status(400).json({ error: 'App_Acronym, App_Rnumber, App_startDate, and App_endDate are required and cannot be null' });
+  }
+
+  try {
+    // Check if App_Acronym already exists
+    const [existingApplication] = await sequelize.query(
+      `SELECT * FROM fullstack.applications WHERE App_Acronym = :App_Acronym`,
+      {
+        replacements: { App_Acronym },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (existingApplication) {
+      return res.status(409).json({ error: 'App_Acronym already exists' });
     }
-    }
-);
+
+    // Insert new application
+    const [result] = await sequelize.query(
+      `INSERT INTO fullstack.applications 
+        (App_Acronym, App_Name, App_Description, App_Owner, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done) 
+      VALUES 
+        (:App_Acronym, :App_Name, :App_Description, :App_Owner, :App_Rnumber, :App_startDate, :App_endDate, :App_permit_Create, :App_permit_Open, :App_permit_toDoList, :App_permit_Doing, :App_permit_Done)
+      RETURNING *`,
+      {
+        replacements: {
+          App_Acronym,
+          App_Name,
+          App_Description,
+          App_Owner,
+          App_Rnumber,
+          App_startDate,
+          App_endDate,
+          App_permit_Create,
+          App_permit_Open,
+          App_permit_toDoList,
+          App_permit_Doing,
+          App_permit_Done
+        }
+      }
+    );
+    const application = result[0];
+    broadcast({ type: 'APPLICATION_CREATED', payload: application });
+    res.status(201).json(application);
+  } catch (error) {
+    console.error('Error creating application:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Update an application
 router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
@@ -72,37 +121,57 @@ router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
     App_permit_Done
   } = req.body;
 
-  const transaction = await Application.sequelize.transaction();
+  const transaction = await sequelize.transaction();
 
   try {
-    const application = await Application.findOne({
-      where: { App_Acronym: appAcronym },
-      lock: transaction.LOCK.UPDATE,
-      transaction
-    });
+    const [application] = await sequelize.query(
+      `SELECT * FROM fullstack.applications WHERE App_Acronym = :appAcronym FOR UPDATE`,
+      {
+        replacements: { appAcronym },
+        type: sequelize.QueryTypes.SELECT,
+        transaction
+      }
+    );
 
     if (!application) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    await application.update({
-      App_Description,
-      App_Rnumber,
-      App_startDate,
-      App_endDate,
-      App_permit_Create,
-      App_permit_Open,
-      App_permit_toDoList,
-      App_permit_Doing,
-      App_permit_Done
-    }, { transaction });
+    await sequelize.query(
+      `UPDATE fullstack.applications SET
+        App_Description = :App_Description,
+        App_Rnumber = :App_Rnumber,
+        App_startDate = :App_startDate,
+        App_endDate = :App_endDate,
+        App_permit_Create = :App_permit_Create,
+        App_permit_Open = :App_permit_Open,
+        App_permit_toDoList = :App_permit_toDoList,
+        App_permit_Doing = :App_permit_Doing,
+        App_permit_Done = :App_permit_Done
+      WHERE
+        App_Acronym = :appAcronym`,
+      {
+        replacements: {
+          App_Description,
+          App_Rnumber,
+          App_startDate,
+          App_endDate,
+          App_permit_Create,
+          App_permit_Open,
+          App_permit_toDoList,
+          App_permit_Doing,
+          App_permit_Done,
+          appAcronym
+        },
+        transaction
+      }
+    );
 
     await transaction.commit();
-    broadcast({ type: 'APPLICATION_UPDATED', payload: application });
-      console.log('Updated application:', application);
-      res.status(200).json(application);
-
+    broadcast({ type: 'APPLICATION_UPDATED', payload: { ...application, App_Description, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done } });
+    console.log('Updated application:', application);
+    res.status(200).json(application);
   } catch (error) {
     await transaction.rollback();
     if (error.name === 'SequelizeTimeoutError') {
@@ -113,11 +182,5 @@ router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
     }
   }
 });
-
-     
-  
-    
-  
-  
 
 module.exports = router;

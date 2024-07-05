@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Task, Application, UserGroup, User, Group } = require("../models");
+const { sequelize } = require("../models"); // Import sequelize instance
 const {
   verifyCreatePermission,
   verifyDoingPermission,
@@ -39,7 +39,6 @@ const sendTaskDoneNotification = async (emails, task) => {
   }
 };
 
-
 router.post("/create", verifyCreatePermission, async (req, res) => {
   const {
     Task_app_Acronym,
@@ -49,14 +48,17 @@ router.post("/create", verifyCreatePermission, async (req, res) => {
     Task_notes,
   } = req.body;
 
-  const transaction = await Task.sequelize.transaction();
+  const transaction = await sequelize.transaction();
 
   try {
-    const application = await Application.findOne({
-      where: { App_Acronym: Task_app_Acronym },
-      lock: transaction.LOCK.UPDATE,
-      transaction,
-    });
+    const [application] = await sequelize.query(
+      `SELECT * FROM Applications WHERE App_Acronym = :app_acronym FOR UPDATE`,
+      {
+        replacements: { app_acronym: Task_app_Acronym },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
+      }
+    );
 
     if (!application) {
       await transaction.rollback();
@@ -66,28 +68,52 @@ router.post("/create", verifyCreatePermission, async (req, res) => {
     const newRnumber = application.App_Rnumber + 1;
     const taskId = `${Task_app_Acronym}_${newRnumber}`;
 
-    const newTask = await Task.create({
-      Task_id: taskId,
-      Task_name: Task_name,
-      Task_description: Task_description ? Task_description : '',
-      Task_app_Acronym: Task_app_Acronym,
-      Task_plan: Task_plan,
-      Task_notes: Task_notes,
-      Task_state: "open",
-      Task_creator: req.username,
-      Task_owner: req.username,
-      Task_createDate: new Date(),
-    }, { transaction });
+    await sequelize.query(
+      `INSERT INTO Tasks 
+        (Task_id, Task_name, Task_description, Task_app_Acronym, Task_plan, Task_notes, Task_state, Task_creator, Task_owner, Task_createDate) 
+      VALUES 
+        (:taskId, :task_name, :task_description, :task_app_acronym, :task_plan, :task_notes, 'open', :task_creator, :task_owner, :task_createDate)`,
+      {
+        replacements: {
+          taskId,
+          task_name: Task_name,
+          task_description: Task_description || '',
+          task_app_acronym: Task_app_Acronym,
+          task_plan: Task_plan,
+          task_notes: Task_notes,
+          task_creator: req.username,
+          task_owner: req.username,
+          task_createDate: new Date(),
+        },
+        transaction,
+      }
+    );
 
-    application.App_Rnumber = newRnumber;
-    await application.save({ transaction });
+    await sequelize.query(
+      `UPDATE Applications SET App_Rnumber = :newRnumber WHERE App_Acronym = :app_acronym`,
+      {
+        replacements: { newRnumber, app_acronym: Task_app_Acronym },
+        transaction,
+      }
+    );
 
     await transaction.commit();
 
     // Notify clients of the new task
-    broadcast({ type: 'TASK_CREATED', task: newTask });
+    broadcast({ type: 'TASK_CREATED', task: { Task_id: taskId, Task_name, Task_description, Task_app_Acronym, Task_plan, Task_notes, Task_state: 'open', Task_creator: req.username, Task_owner: req.username, Task_createDate: new Date() } });
 
-    res.status(201).json(newTask);
+    res.status(201).json({
+      Task_id: taskId,
+      Task_name,
+      Task_description,
+      Task_app_Acronym,
+      Task_plan,
+      Task_notes,
+      Task_state: 'open',
+      Task_creator: req.username,
+      Task_owner: req.username,
+      Task_createDate: new Date(),
+    });
   } catch (error) {
     if (transaction.finished !== 'commit') {
       await transaction.rollback();
@@ -106,9 +132,13 @@ router.get("/:app_acronym", async (req, res) => {
   const { app_acronym } = req.params;
 
   try {
-    const tasks = await Task.findAll({
-      where: { Task_app_Acronym: app_acronym },
-    });
+    const tasks = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_app_Acronym = :app_acronym`,
+      {
+        replacements: { app_acronym },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
     res.status(200).json(tasks);
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -121,28 +151,34 @@ router.put("/:taskId", verifyOpenPermission, async (req, res) => {
   const { taskId } = req.params;
   const { Task_notes, Task_owner, Task_plan } = req.body;
 
-  const transaction = await Task.sequelize.transaction();
+  const transaction = await sequelize.transaction();
 
   try {
-    const task = await Task.findOne({
-      where: { Task_id: taskId },
-      lock: transaction.LOCK.UPDATE,
-      transaction,
-    });
+    const [task] = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_id = :taskId FOR UPDATE`,
+      {
+        replacements: { taskId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
+      }
+    );
     if (!task) {
       await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
     
-    await task.update(
-      { Task_notes, Task_owner, Task_plan },
-      { transaction }
+    await sequelize.query(
+      `UPDATE Tasks SET Task_notes = :task_notes, Task_owner = :task_owner, Task_plan = :task_plan WHERE Task_id = :taskId`,
+      {
+        replacements: { task_notes: Task_notes, task_owner: Task_owner, task_plan: Task_plan, taskId },
+        transaction,
+      }
     );
 
     await transaction.commit();
     
     // Notify clients of the updated task
-    broadcast({ type: 'TASK_UPDATED', task });
+    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_notes, Task_owner, Task_plan } });
 
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
@@ -156,26 +192,34 @@ router.put("/:taskId", verifyOpenPermission, async (req, res) => {
 
 router.put("/:taskId/addnote", async (req, res) => {
   const { taskId } = req.params;
-  const { Task_notes, Task_owner} = req.body;
+  const { Task_notes, Task_owner } = req.body;
 
-  const transaction = await Task.sequelize.transaction();
+  const transaction = await sequelize.transaction();
 
   try {
-    const task = await Task.findOne({ where: { Task_id: taskId },
-      lock: transaction.LOCK.UPDATE,
-       transaction});
+    const [task] = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_id = :taskId FOR UPDATE`,
+      {
+        replacements: { taskId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
+      }
+    );
     if (!task) {
       await transaction.rollback();
       return res.status(404).json({ error: "Task not found" });
     }
-    await task.update(
-      { Task_notes, Task_owner},
-       { transaction }
+    await sequelize.query(
+      `UPDATE Tasks SET Task_notes = :task_notes, Task_owner = :task_owner WHERE Task_id = :taskId`,
+      {
+        replacements: { task_notes: Task_notes, task_owner: Task_owner, taskId },
+        transaction,
+      }
     );
     await transaction.commit();
 
     // Notify clients of the updated task
-    broadcast({ type: 'NOTES_UPDATED', task: task });
+    broadcast({ type: 'NOTES_UPDATED', task: { ...task, Task_notes, Task_owner } });
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
     await transaction.rollback();
@@ -195,12 +239,17 @@ router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
     Task_owner,
   } = req.body;
 
-  const transaction = await Task.sequelize.transaction();
+  const transaction = await sequelize.transaction();
 
   try {
-    const task =  await Task.findOne({ where: { Task_id: taskId },
-      lock: transaction.LOCK.UPDATE,
-       transaction});
+    const [task] = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_id = :taskId FOR UPDATE`,
+      {
+        replacements: { taskId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
+      }
+    );
 
     if (!task) {
       await transaction.rollback();
@@ -208,72 +257,93 @@ router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
     }
 
     if (task.Task_state !== "open") {
-        await transaction.rollback();
-        return res.status(403).json({ error: "Task has already been acknowledged by a user." });
-        }
-
-      await task.update(
-        { Task_name, Task_description, Task_plan, Task_notes, Task_state: "to-do", Task_owner },
-       { transaction }
-      );
-      await transaction.commit();
-      broadcast({ type: 'TASK_UPDATED', task });
-      res.status(200).json({ message: "Task released successfully", task });
-    } catch (error) {
       await transaction.rollback();
-      console.error("Error updating task:", error);
-      res.status(500).json({ error: "Error updating task" });
+      return res.status(403).json({ error: "Task has already been acknowledged by a user." });
     }
-  }
-);
 
-router.put(
-  "/:taskId/Acknowledge",
-  verifyToDoListPermission,
-  async (req, res) => {
-    const {
-      Task_name,
-      Task_description,
-      Task_plan,
-      Task_notes,
-      Task_state,
-      Task_owner,
-    } = req.body;
-
-    const { taskId } = req.params;
-
-    const transaction = await Task.sequelize.transaction();
-    try {
-      const task =  await Task.findOne({ where: { Task_id: taskId },
-        lock: transaction.LOCK.UPDATE,
-         transaction});
-
-      if (!task) {
-        await transaction.rollback();
-        return res.status(404).json({ error: "Task not found" });
+    await sequelize.query(
+      `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = 'to-do', Task_owner = :task_owner WHERE Task_id = :taskId`,
+      {
+        replacements: {
+          task_name: Task_name,
+          task_description: Task_description,
+          task_plan: Task_plan,
+          task_notes: Task_notes,
+          task_owner: Task_owner,
+          taskId,
+        },
+        transaction,
       }
+    );
 
-      if (task.Task_state !== "to-do") {
-        await transaction.rollback();
-        return res.status(403).json({ error: "Task has already been acknowledged by a user." });
-        }
-
-        await task.update(
-          { Task_name, Task_description, Task_plan, Task_notes, Task_state: "doing", Task_owner },
-          { transaction }
-        );
-
-      await transaction.commit();
-      broadcast({ type: 'TASK_UPDATED', task });
-      res.status(200).json({ message: "Task acknowledged successfully", task });
-    } catch (error) {
-      await transaction.rollback();
-      console.error("Error updating task:", error);
-      res.status(500).json({ error: "Error updating task" });
-    }
+    await transaction.commit();
+    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'to-do', Task_owner } });
+    res.status(200).json({ message: "Task released successfully", task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'to-do', Task_owner } });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error updating task:", error);
+    res.status(500).json({ error: "Error updating task" });
   }
-);
+});
 
+router.put("/:taskId/Acknowledge", verifyToDoListPermission, async (req, res) => {
+  const {
+    Task_name,
+    Task_description,
+    Task_plan,
+    Task_notes,
+    Task_state,
+    Task_owner,
+  } = req.body;
+
+  const { taskId } = req.params;
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const [task] = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_id = :taskId FOR UPDATE`,
+      {
+        replacements: { taskId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
+      }
+    );
+
+    if (!task) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    if (task.Task_state !== "to-do") {
+      await transaction.rollback();
+      return res.status(403).json({ error: "Task has already been acknowledged by a user." });
+    }
+
+    await sequelize.query(
+      `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = 'doing', Task_owner = :task_owner WHERE Task_id = :taskId`,
+      {
+        replacements: {
+          task_name: Task_name,
+          task_description: Task_description,
+          task_plan: Task_plan,
+          task_notes: Task_notes,
+          task_owner: Task_owner,
+          taskId,
+        },
+        transaction,
+      }
+    );
+
+    await transaction.commit();
+    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'doing', Task_owner } });
+    res.status(200).json({ message: "Task acknowledged successfully", task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'doing', Task_owner } });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error updating task:", error);
+    res.status(500).json({ error: "Error updating task" });
+  }
+});
 
 router.put("/:taskId/CompleteOrHalt", verifyDoingPermission, async (req, res) => {
   const { taskId } = req.params;
@@ -286,15 +356,17 @@ router.put("/:taskId/CompleteOrHalt", verifyDoingPermission, async (req, res) =>
     Task_owner,
   } = req.body;
 
-  const transaction = await Task.sequelize.transaction();
+  const transaction = await sequelize.transaction();
 
   try {
-    // Try to acquire a lock on the task row
-    const task = await Task.findOne({
-      where: { Task_id: taskId },
-      lock: transaction.LOCK.UPDATE,
-      transaction,
-    });
+    const [task] = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_id = :taskId FOR UPDATE`,
+      {
+        replacements: { taskId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
+      }
+    );
 
     if (!task) {
       await transaction.rollback();
@@ -306,46 +378,59 @@ router.put("/:taskId/CompleteOrHalt", verifyDoingPermission, async (req, res) =>
       return res.status(403).json({ error: "Task has already been acknowledged by a user." });
     }
 
-    // Perform the update within the transaction
-    await task.update({
-      Task_name,
-      Task_description,
-      Task_plan,
-      Task_notes,
-      Task_state,
-      Task_owner,
-    }, { transaction });
+    await sequelize.query(
+      `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = :task_state, Task_owner = :task_owner WHERE Task_id = :taskId`,
+      {
+        replacements: {
+          task_name: Task_name,
+          task_description: Task_description,
+          task_plan: Task_plan,
+          task_notes: Task_notes,
+          task_state: Task_state,
+          task_owner: Task_owner,
+          taskId,
+        },
+        transaction,
+      }
+    );
 
-    // Commit the transaction
     await transaction.commit();
+    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } });
 
-    // Broadcast the updated task
-    broadcast({ type: 'TASK_UPDATED', task });
-    // Send email notification if the task state is 'done'
     if (Task_state === 'done') {
-      // Fetch the application to get the app_permit_done field
-      const application = await Application.findOne({ where: { App_Acronym: task.Task_app_Acronym } });
-      if (application) {
-        const groupName = application.App_permit_Done;
+      const [application] = await sequelize.query(
+        `SELECT App_permit_Done FROM Applications WHERE App_Acronym = :app_acronym`,
+        {
+          replacements: { app_acronym: task.Task_app_Acronym },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      );
 
-        // Fetch the group with the specified group name
-        const group = await Group.findOne({ where: { name: groupName } });
+      if (application) {
+        const [group] = await sequelize.query(
+          `SELECT id FROM fullstack.groups WHERE name = :groupName`,
+          {
+            replacements: { groupName: application.App_permit_Done },
+            type: sequelize.QueryTypes.SELECT,
+          }
+        );
 
         if (group) {
-          // Fetch the users in that group through the UserGroup table
-          const userGroups = await UserGroup.findAll({
-            where: { groupId: group.id },
-            include: [{ model: User, as: 'user', attributes: ['email'] }]
-          });
+          const userGroups = await sequelize.query(
+            `SELECT fullstack.users.email FROM fullstack.usergroups INNER JOIN fullstack.users ON fullstack.usergroups.username = fullstack.users.username WHERE fullstack.usergroups.groupId = :groupId`,
+            {
+              replacements: { groupId: group.id },
+              type: sequelize.QueryTypes.SELECT,
+            }
+          );
 
-          const emails = userGroups.map(userGroup => userGroup.user.email);
+          const emails = userGroups.map(userGroup => userGroup.email);
           await sendTaskDoneNotification(emails, task);
         }
       }
     }
     res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
-    // Rollback the transaction only if it hasn't been committed
     if (!transaction.finished) {
       await transaction.rollback();
     }
@@ -359,52 +444,58 @@ router.put("/:taskId/CompleteOrHalt", verifyDoingPermission, async (req, res) =>
   }
 });
 
+router.put("/:taskId/ApproveOrReject", verifyDonePermission, async (req, res) => {
+  const { taskId } = req.params;
+  const {
+    Task_name,
+    Task_description,
+    Task_plan,
+    Task_notes,
+    Task_state,
+    Task_owner,
+  } = req.body;
 
-router.put(
-  "/:taskId/ApproveOrReject",
-  verifyDonePermission,
-  async (req, res) => {
-    const { taskId } = req.params;
-    const {
-      Task_name,
-      Task_description,
-      Task_plan,
-      Task_notes,
-      Task_state,
-      Task_owner,
-    } = req.body;
+  const transaction = await sequelize.transaction();
 
-  const transaction = await Task.sequelize.transaction();
-
-    try {
-      const task = await Task.findOne({ where: { Task_id: taskId },
-        lock: transaction.LOCK.UPDATE,
-         transaction}
-      );
-      if (!task) {
-        await transaction.rollback();
-        return res.status(404).json({ error: "Task not found" });
+  try {
+    const [task] = await sequelize.query(
+      `SELECT * FROM Tasks WHERE Task_id = :taskId FOR UPDATE`,
+      {
+        replacements: { taskId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction,
       }
-     
-    // Perform the update within the transaction
-    await task.update({
-      Task_name,
-      Task_description,
-      Task_plan,
-      Task_notes,
-      Task_state,
-      Task_owner,
-    }, { transaction });
+    );
+
+    if (!task) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    await sequelize.query(
+      `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = :task_state, Task_owner = :task_owner WHERE Task_id = :taskId`,
+      {
+        replacements: {
+          task_name: Task_name,
+          task_description: Task_description,
+          task_plan: Task_plan,
+          task_notes: Task_notes,
+          task_state: Task_state,
+          task_owner: Task_owner,
+          taskId,
+        },
+        transaction,
+      }
+    );
 
     await transaction.commit();
-    broadcast({ type: 'TASK_UPDATED', task });
-      res.status(200).json({ message: "Task updated successfully" });
-    } catch (error) {
-      await transaction.rollback();
-      console.error("Error updating task:", error);
-      res.status(500).json({ error: "Error updating task" });
-    }
+    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state, Task_owner } });
+    res.status(200).json({ message: "Task updated successfully" });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error updating task:", error);
+    res.status(500).json({ error: "Error updating task" });
   }
-);
+});
 
 module.exports = router;
