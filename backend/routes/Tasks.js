@@ -48,6 +48,10 @@ router.post("/create", verifyCreatePermission, async (req, res) => {
     Task_notes,
   } = req.body;
 
+  if (!Task_name) {
+    return res.status(400).json({ error: 'Task name is required and cannot be null' });
+  }
+
   const transaction = await sequelize.transaction();
 
   try {
