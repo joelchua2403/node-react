@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Group, UserGroup, Post, User } = require('../models');
-const bcrypt = require('bcrypt');
+
 const jwt = require('jsonwebtoken');
 const { where } = require('sequelize');
 const secretKey = 'secretkey'
