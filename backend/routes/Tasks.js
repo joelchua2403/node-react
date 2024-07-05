@@ -476,6 +476,12 @@ router.put("/:taskId/ApproveOrReject", verifyDonePermission, async (req, res) =>
       return res.status(404).json({ error: "Task not found" });
     }
 
+    // Check if Task_plan is being changed and Task_state is "done"
+    if (task.Task_plan !== Task_plan && Task_state === "closed") {
+      await transaction.rollback();
+      return res.status(400).json({ error: "Task cannot be approved if the Task_plan is reassigned" });
+    }
+
     await sequelize.query(
       `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = :task_state, Task_owner = :task_owner WHERE Task_id = :taskId`,
       {
