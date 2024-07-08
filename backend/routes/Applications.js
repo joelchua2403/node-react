@@ -3,7 +3,18 @@ const router = express.Router();
 const { sequelize } = require('../models'); // Import sequelize instance
 const { verifyProjectLead } = require('../middleware/groupAuthMiddleware');
 const { broadcast } = require('../middleware/websocket');
+const { format, isValid, parseISO } = require('date-fns');
 
+// Function to check if date is valid and in ISO format
+const isValidISODate = (dateString) => {
+  const date = parseISO(dateString);
+  return isValid(date);
+};
+
+// Function to check if date has '00:00:00.000Z' time portion
+const hasInvalidTime = (dateString) => {
+  return dateString.endsWith('00:00:00.000Z');
+};
 router.get('/', async (req, res) => {
   try {
     const applications = await sequelize.query(
@@ -121,6 +132,16 @@ router.put('/:appAcronym', verifyProjectLead, async (req, res) => {
     App_permit_Done
   } = req.body;
 
+  
+   // Check if any of the required fields is null or undefined
+   if (!App_startDate || !App_endDate) {
+    return res.status(400).json({ error: 'App start date and App end date are required and cannot be null' });
+  }
+
+  // Check if datetime format is valid and if it has invalid time
+  if (!isValidISODate(App_startDate) || !isValidISODate(App_endDate) || hasInvalidTime(App_startDate) || hasInvalidTime(App_endDate)) {
+    return res.status(400).json({ error: 'App start date and App end date are required and cannot have invalid time format' });
+  }
   const transaction = await sequelize.transaction();
 
   try {
