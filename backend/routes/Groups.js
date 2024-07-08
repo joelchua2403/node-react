@@ -61,6 +61,10 @@ router.post('/:groupId/join', async (req, res) => {
     const { userId } = req.body;
     console.log('userId:', userId);
     console.log('groupId:', groupId);
+
+    if (userId === 'admin' && groupId === 4) {
+      return res.status(403).json({ error: 'Admin cannot be revoked' });
+    }
     try {
       const userGroup = await UserGroup.create({ userId, groupId });
       res.json(userGroup);
