@@ -421,7 +421,7 @@ router.put("/:taskId/CompleteOrHalt", verifyDoingPermission, async (req, res) =>
 
         if (group) {
           const userGroups = await sequelize.query(
-            `SELECT fullstack.users.email FROM fullstack.usergroups INNER JOIN fullstack.users ON fullstack.usergroups.username = fullstack.users.username WHERE fullstack.usergroups.groupId = :groupId`,
+            `SELECT fullstack.users.email FROM fullstack.usergroups INNER JOIN fullstack.users ON fullstack.usergroups.username = fullstack.users.username WHERE fullstack.usergroups.groupId = :groupId AND fullstack.users.isDisabled = false`,
             {
               replacements: { groupId: group.id },
               type: sequelize.QueryTypes.SELECT,
