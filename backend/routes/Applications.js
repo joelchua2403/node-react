@@ -52,9 +52,7 @@ router.get('/:app_acronym', async (req, res) => {
 router.post('/create', verifyProjectLead, async (req, res) => {
   const {
     App_Acronym,
-    App_Name,
     App_Description,
-    App_Owner,
     App_Rnumber,
     App_startDate,
     App_endDate,
@@ -69,6 +67,20 @@ router.post('/create', verifyProjectLead, async (req, res) => {
   if (!App_Acronym || !App_Rnumber || !App_startDate || !App_endDate) {
     return res.status(400).json({ error: 'App_Acronym, App_Rnumber, App_startDate, and App_endDate are required and cannot be null' });
   }
+
+
+  // Check if App_Acronym only contains alphanumeric characters and underscores
+  const acronymRegex = /^[a-zA-Z0-9_]+$/;
+  if (!acronymRegex.test(App_Acronym)) {
+    return res.status(401).json({ error: 'Application acronym can only contain alphanumeric characters and underscores.' });
+  }
+
+  // Check if App_Rnumber is a positive integer
+  const runningNumber = parseInt(App_Rnumber, 10);
+  if (isNaN(runningNumber) || runningNumber <= 0) {
+    return res.status(402).json({ error: 'Application running number must be a positive integer.' });
+  }
+
 
   try {
     // Check if App_Acronym already exists
@@ -87,16 +99,13 @@ router.post('/create', verifyProjectLead, async (req, res) => {
     // Insert new application
     const [result] = await sequelize.query(
       `INSERT INTO fullstack.applications 
-        (App_Acronym, App_Name, App_Description, App_Owner, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done) 
+        (App_Acronym, App_Description, App_Rnumber, App_startDate, App_endDate, App_permit_Create, App_permit_Open, App_permit_toDoList, App_permit_Doing, App_permit_Done) 
       VALUES 
-        (:App_Acronym, :App_Name, :App_Description, :App_Owner, :App_Rnumber, :App_startDate, :App_endDate, :App_permit_Create, :App_permit_Open, :App_permit_toDoList, :App_permit_Doing, :App_permit_Done)
-      RETURNING *`,
+        (:App_Acronym, :App_Description, :App_Rnumber, :App_startDate, :App_endDate, :App_permit_Create, :App_permit_Open, :App_permit_toDoList, :App_permit_Doing, :App_permit_Done)`,
       {
         replacements: {
           App_Acronym,
-          App_Name,
           App_Description,
-          App_Owner,
           App_Rnumber,
           App_startDate,
           App_endDate,

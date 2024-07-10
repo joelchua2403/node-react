@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const app = express();
-const { initializeWebSocket, broadcast } = require('./middleware/websocket');
+const { initializeWebSocket } = require('./middleware/websocket');
 const verifyToken = require('./middleware/authMiddleware');
 const { isDisabled } = require('./middleware/groupAuthMiddleware');
 app.use(express.json());
