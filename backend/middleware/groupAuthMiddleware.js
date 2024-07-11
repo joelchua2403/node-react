@@ -91,7 +91,7 @@ const verifyProjectLead = async (req, res, next) => {
 
     const isProjectLead = await CheckGroup(username, 'project lead');
     if (!isProjectLead) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ error: 'You do not have the required permission to perform this action.' });
     }
 
     req.username = username;
