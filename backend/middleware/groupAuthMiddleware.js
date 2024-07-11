@@ -102,6 +102,34 @@ const verifyProjectLead = async (req, res, next) => {
   }
 };
 
+const verifyProjectManager = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ auth: false, message: 'No token provided' });
+  }
+  const tokenParts = authHeader.split(' ');
+  if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
+    return res.status(401).json({ auth: false, message: 'Token format incorrect' });
+  }
+
+  const token = tokenParts[1];
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    const username = decoded.username;
+
+    const isProjectManager = await CheckGroup(username, 'project manager');
+    if (!isProjectManager) {
+      return res.status(403).json({ error: 'You do not have the required permission to perform this action.' });
+    }
+    req.username = username;
+    next();
+  } catch (error) {
+    console.error('Failed to verify token or check group:', error);
+    return res.status(500).json({ auth: false, message: 'Failed to verify user in required group' });
+  }
+};
+
+
 const verifyGroup = (requiredPermission) => {
   return async (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -137,7 +165,7 @@ const verifyGroup = (requiredPermission) => {
       
 
       if (!isInGroup) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(403).json({ error: 'You do not have the required permission to perform this action.' });
       }
 
 
@@ -156,7 +184,7 @@ const verifyToDoListPermission = verifyGroup('toDoList');
 const verifyDoingPermission = verifyGroup('Doing');
 const verifyDonePermission = verifyGroup('Done');
 
-  module.exports = { verifyProjectLead,  verifyCreatePermission,
+  module.exports = { verifyProjectLead, verifyProjectManager,  verifyCreatePermission,
     verifyOpenPermission,
     verifyToDoListPermission,
     verifyDoingPermission,

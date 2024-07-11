@@ -3,9 +3,10 @@ const router = express.Router();
 const { sequelize } = require('../models'); // Import sequelize instance
 const verifyToken = require('../middleware/authMiddleware');
 const { broadcast } = require('../middleware/websocket');
+const { verifyProjectManager } = require('../middleware/groupAuthMiddleware');
 
 // Create a new plan
-router.post('/', async (req, res) => {
+router.post('/', verifyProjectManager, async (req, res) => {
   const { Plan_MVP_name, Plan_startDate, Plan_endDate, Plan_app_Acronym } = req.body;
 
   // Check if any of the required fields is null or undefined

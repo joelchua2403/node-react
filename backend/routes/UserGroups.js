@@ -4,6 +4,7 @@ const { Group, UserGroup, User, Application } = require('../models');
 const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
 const { CheckGroup, verifyCreatePermission } = require('../middleware/groupAuthMiddleware');
+const { broadcast } = require('../middleware/websocket');
 
 // Fetch all users with their groups
 
@@ -114,6 +115,7 @@ router.post('/:groupId/join',  async (req, res) => {
     }
     const userGroup = await UserGroup.create({ userId: username, groupId });
     console.log('User Group:', userGroup);
+   
     res.json(userGroup);
   } catch (error) {
     res.status(500).json({ error: 'Failed to join group' });

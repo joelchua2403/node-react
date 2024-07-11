@@ -8,7 +8,7 @@ const verifyToken = require('../middleware/authMiddleware');
 const { sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { isAdmin, isDisabled } = require('../middleware/groupAuthMiddleware');
-
+const { broadcast } = require('../middleware/websocket');
 
   // Create token
   const createToken = (user, req) => {
@@ -189,7 +189,7 @@ router.put('/update-email', verifyToken, isDisabled, async (req, res) => {
       });
   
       await user.setGroups(groupInstances);
-  
+      broadcast({ type: 'USER_UPDATE_GROUP', payload: { username, groupInstances } });
       res.status(200).json({ message: 'User groups updated successfully' });
     } catch (error) {
       console.error('Failed to update user groups:', error);
