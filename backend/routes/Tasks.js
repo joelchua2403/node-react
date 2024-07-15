@@ -266,7 +266,7 @@ router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
     }
 
     await sequelize.query(
-      `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = 'to-do', Task_owner = :task_owner WHERE Task_id = :taskId`,
+      `UPDATE Tasks SET Task_name = :task_name, Task_description = :task_description, Task_plan = :task_plan, Task_notes = :task_notes, Task_state = 'todo', Task_owner = :task_owner WHERE Task_id = :taskId`,
       {
         replacements: {
           task_name: Task_name,
@@ -281,8 +281,8 @@ router.put("/:taskId/release", verifyOpenPermission, async (req, res) => {
     );
 
     await transaction.commit();
-    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'to-do', Task_owner } });
-    res.status(200).json({ message: "Task released successfully", task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'to-do', Task_owner } });
+    broadcast({ type: 'TASK_UPDATED', task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'todo', Task_owner } });
+    res.status(200).json({ message: "Task released successfully", task: { ...task, Task_name, Task_description, Task_plan, Task_notes, Task_state: 'todo', Task_owner } });
   } catch (error) {
     await transaction.rollback();
     console.error("Error updating task:", error);
@@ -319,7 +319,7 @@ router.put("/:taskId/Acknowledge", verifyToDoListPermission, async (req, res) =>
       return res.status(404).json({ error: "Task not found" });
     }
 
-    if (task.Task_state !== "to-do") {
+    if (task.Task_state !== "todo") {
       await transaction.rollback();
       return res.status(403).json({ error: "Task has already been acknowledged by a user." });
     }
